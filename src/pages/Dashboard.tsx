@@ -197,7 +197,7 @@ export default function Dashboard() {
   }, [baseList, kpiFilter, rangeDays, thisYear, thisMonth, nextMonthYear, nextMonthMonth, selectedWeek, weekStrip]);
 
   const topLocations = useMemo(() => {
-    const locMap = new Map<string, { id: string; name: string; customerName: string; count: number }>();
+    const locMap = new Map<string, { id: string; name: string; customerName: string; count: number; expiredCount: number; expiringCount: number }>();
     baseList.forEach(o => {
       if (!o.locations) return;
       const g = computeTermGroup(o.next_due_date, rangeDays);
@@ -206,8 +206,17 @@ export default function Dashboard() {
         const existing = locMap.get(key);
         if (existing) {
           existing.count++;
+          if (g === "expired") existing.expiredCount++;
+          else existing.expiringCount++;
         } else {
-          locMap.set(key, { id: key, name: o.locations.name, customerName: o.customers?.name || "", count: 1 });
+          locMap.set(key, {
+            id: key,
+            name: o.locations.name,
+            customerName: o.customers?.name || "",
+            count: 1,
+            expiredCount: g === "expired" ? 1 : 0,
+            expiringCount: g === "expiring" ? 1 : 0,
+          });
         }
       }
     });
@@ -502,14 +511,28 @@ export default function Dashboard() {
             {topLocations.map(loc => (
               <Card key={loc.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/locations/${loc.id}`)}>
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
+                   <div className="flex items-start justify-between mb-2">
                     <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
                       <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
                     </div>
-                    <span className="text-2xl font-extrabold text-red-600 dark:text-red-400">{loc.count}</span>
+                    <div className="flex items-center gap-1.5">
+                      {loc.expiredCount > 0 && (
+                        <span className="text-lg font-extrabold text-red-600 dark:text-red-400">{loc.expiredCount}</span>
+                      )}
+                      {loc.expiredCount > 0 && loc.expiringCount > 0 && (
+                        <span className="text-muted-foreground text-xs">/</span>
+                      )}
+                      {loc.expiringCount > 0 && (
+                        <span className="text-lg font-extrabold text-yellow-600 dark:text-yellow-400">{loc.expiringCount}</span>
+                      )}
+                    </div>
                   </div>
                   <p className="text-sm font-semibold truncate">{loc.name}</p>
                   <p className="text-xs text-muted-foreground truncate">{loc.customerName}</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    {loc.expiredCount > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 font-medium">Po termínu</span>}
+                    {loc.expiringCount > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 font-medium">Brzy</span>}
+                  </div>
                   <Button variant="ghost" size="sm" className="w-full mt-2 h-7 text-xs" onClick={(e) => { e.stopPropagation(); navigate(`/locations/${loc.id}`); }}>
                     Zobrazit <ArrowRight className="w-3 h-3 ml-1" />
                   </Button>
