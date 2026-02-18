@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, ArrowUpDown, AlertTriangle } from "lucide-react";
+import { Plus, Search, ArrowUpDown, AlertTriangle, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
@@ -137,6 +138,17 @@ export default function Customers() {
   };
 
   const getContact = (customerId: string) => contacts.find(c => c.customer_id === customerId);
+
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("customers").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Nelze smazat", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Odběratel smazán" });
+    setSelectedId(null);
+    fetchData();
+  };
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -446,9 +458,30 @@ export default function Customers() {
               )}
               {selected.website && <p><span className="text-muted-foreground">Web:</span> {selected.website}</p>}
             </div>
-            <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => navigate(`/customers/${selected.id}`)}>
-              Otevřít detail
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => navigate(`/customers/${selected.id}`)}>
+                Otevřít detail
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="destructive" className="text-xs">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Smazat odběratele?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Opravdu chcete smazat „{selected.name}"? Tato akce je nevratná.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Zrušit</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleDelete(selected.id)}>Smazat</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         )}
       </div>
