@@ -2,8 +2,9 @@ import { ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  LayoutDashboard, Building2, MapPin, ClipboardCheck, Settings, LogOut, Menu, X, Shield, ChevronDown
+  LayoutDashboard, Building2, MapPin, ClipboardCheck, Settings, LogOut, Menu, X, ChevronDown
 } from "lucide-react";
+import logo from "@/assets/logo-muj-revizak.png";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -33,12 +34,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="p-4 flex items-center gap-3 border-b border-sidebar-border">
-          <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
-            <Shield className="w-4 h-4 text-sidebar-primary-foreground" />
-          </div>
+          <img src={logo} alt="Můj Revizák" className="w-8 h-8 rounded-lg" />
           <div className="flex-1 min-w-0">
-            <h1 className="font-bold text-sm truncate">Hlídání revizí</h1>
-            <p className="text-xs text-sidebar-foreground/60 truncate">Správa povinností</p>
+            <h1 className="font-bold text-sm truncate">Můj Revizák</h1>
+            <p className="text-xs text-sidebar-foreground/60 truncate">Hlídání revizí</p>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-sidebar-foreground/60 hover:text-sidebar-foreground">
             <X className="w-5 h-5" />
@@ -90,7 +89,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <button onClick={() => setSidebarOpen(true)}>
             <Menu className="w-5 h-5" />
           </button>
-          <h1 className="font-semibold text-sm">Hlídání revizí</h1>
+          <h1 className="font-semibold text-sm">Můj Revizák</h1>
         </header>
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
           {children}
