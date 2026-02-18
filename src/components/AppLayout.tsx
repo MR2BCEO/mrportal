@@ -7,6 +7,7 @@ import {
 import logo from "@/assets/logo-muj-revizak.png";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { UIExportButton } from "@/components/UIExportButton";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -67,7 +68,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="p-3 border-t border-sidebar-border">
+        <div className="p-3 border-t border-sidebar-border space-y-2">
+          <div className="px-3">
+            <UIExportButton />
+          </div>
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-bold text-sidebar-accent-foreground">
               {userName?.charAt(0)?.toUpperCase() || "?"}
