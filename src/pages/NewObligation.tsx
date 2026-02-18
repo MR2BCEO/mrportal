@@ -464,10 +464,10 @@ export default function NewObligation() {
             {locationId && assets.length > 0 && (
               <div className="space-y-2">
                 <Label>Zařízení (volitelně)</Label>
-                <Select value={assetId} onValueChange={setAssetId}>
+                <Select value={assetId} onValueChange={(v) => setAssetId(v === "none" ? "" : v)}>
                   <SelectTrigger><SelectValue placeholder="Vyberte zařízení" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Žádné</SelectItem>
+                    <SelectItem value="none">Žádné</SelectItem>
                     {assets.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
