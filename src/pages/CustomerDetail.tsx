@@ -3,39 +3,167 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge, DivisionBadge } from "@/components/StatusBadge";
-import { ArrowLeft, MapPin, ClipboardCheck, Users } from "lucide-react";
+import { ArrowLeft, MapPin, ClipboardCheck, Users, Pencil, Save, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function CustomerDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [customer, setCustomer] = useState<any>(null);
   const [locations, setLocations] = useState<any[]>([]);
   const [obligations, setObligations] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<any>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    supabase.from("customers").select("*").eq("id", id).single().then(({ data }) => setCustomer(data));
+    supabase.from("customers").select("*").eq("id", id).single().then(({ data }) => {
+      setCustomer(data);
+      if (data) setForm(data);
+    });
     supabase.from("locations").select("*").eq("customer_id", id).order("name").then(({ data }) => setLocations(data || []));
     supabase.from("obligations").select("id, title, status, next_due_date, service_catalog(code, name, division), locations(name)").eq("customer_id", id).order("next_due_date").then(({ data }) => setObligations(data || []));
     supabase.from("contacts").select("*").eq("customer_id", id).order("is_primary", { ascending: false }).then(({ data }) => setContacts(data || []));
   }, [id]);
 
+  const handleSave = async () => {
+    if (!id) return;
+    setSaving(true);
+    const { error } = await supabase.from("customers").update({
+      name: form.name,
+      ico: form.ico || null,
+      dic: form.dic || null,
+      type: form.type,
+      address_line: form.address_line || null,
+      city: form.city || null,
+      zip: form.zip || null,
+      country: form.country || "CZ",
+      email: form.email || null,
+      phone: form.phone || null,
+      website: form.website || null,
+      note: form.note || null,
+    }).eq("id", id);
+    setSaving(false);
+
+    if (error) {
+      toast({ title: "Chyba při ukládání", description: error.message, variant: "destructive" });
+      return;
+    }
+    setCustomer(form);
+    setEditing(false);
+    toast({ title: "Odběratel uložen" });
+  };
+
+  const f = (field: string) => ({
+    value: form[field] || "",
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((prev: any) => ({ ...prev, [field]: e.target.value })),
+  });
+
   if (!customer) return <div className="p-8 text-center text-muted-foreground">Načítání...</div>;
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/customers")}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">{customer.name}</h1>
-          <p className="text-sm text-muted-foreground">{customer.ico ? `IČO: ${customer.ico}` : customer.type}</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/customers")}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">{customer.name}</h1>
+            <p className="text-sm text-muted-foreground">{customer.ico ? `IČO: ${customer.ico}` : customer.type}</p>
+          </div>
         </div>
+        {!editing ? (
+          <Button variant="outline" size="sm" onClick={() => { setForm(customer); setEditing(true); }}>
+            <Pencil className="w-3.5 h-3.5 mr-1.5" />Upravit
+          </Button>
+        ) : (
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+              <X className="w-3.5 h-3.5 mr-1.5" />Zrušit
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              <Save className="w-3.5 h-3.5 mr-1.5" />{saving ? "Ukládání..." : "Uložit"}
+            </Button>
+          </div>
+        )}
       </div>
+
+      {editing && (
+        <Card>
+          <CardContent className="p-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Název *</Label>
+                <Input {...f("name")} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Typ</Label>
+                <Select value={form.type || "firma"} onValueChange={v => setForm((prev: any) => ({ ...prev, type: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="firma">Právnická osoba</SelectItem>
+                    <SelectItem value="fo">Fyzická osoba</SelectItem>
+                    <SelectItem value="instituce">Instituce</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>IČO</Label>
+                <Input {...f("ico")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>DIČ</Label>
+                <Input {...f("dic")} />
+              </div>
+            </div>
+            <div className="grid grid-cols-[1fr_100px_1fr] gap-4">
+              <div className="space-y-1.5">
+                <Label>Ulice</Label>
+                <Input {...f("address_line")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>PSČ</Label>
+                <Input {...f("zip")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Město</Label>
+                <Input {...f("city")} />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label>E-mail</Label>
+                <Input {...f("email")} type="email" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Telefon</Label>
+                <Input {...f("phone")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Web</Label>
+                <Input {...f("website")} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Poznámka</Label>
+              <Textarea {...f("note")} rows={3} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="locations">
         <TabsList>
