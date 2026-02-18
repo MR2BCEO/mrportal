@@ -1,12 +1,11 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   AlertTriangle, Clock, CalendarDays, CalendarPlus, Plus,
-  CheckCircle2, Play, MapPin, ArrowRight, RotateCcw, User, Shield, Eye
+  CheckCircle2, Play, MapPin, ArrowRight, RotateCcw, Shield, Eye
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format, addWeeks, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
@@ -43,6 +42,12 @@ const termGroupToStatus: Record<TermGroup, string> = {
   expired: "OVERDUE",
 };
 
+interface TechnicianItem {
+  id: string;
+  name: string;
+  company: string | null;
+}
+
 interface ObligationRow {
   id: string;
   title: string;
@@ -50,6 +55,7 @@ interface ObligationRow {
   next_due_date: string | null;
   performed_date: string | null;
   responsible_user_id: string | null;
+  technician_name: string | null;
   customers: { name: string } | null;
   locations: { id: string; name: string } | null;
   service_catalog: { code: string; name: string; division: string } | null;
@@ -64,16 +70,16 @@ export default function Dashboard() {
   const [kpiFilter, setKpiFilter] = useState<KpiFilter>(null);
   const [settingsThreshold, setSettingsThreshold] = useState(DEFAULT_THRESHOLD_DAYS);
   const [rangeDays, setRangeDays] = useState(DEFAULT_THRESHOLD_DAYS);
-  const [onlyMine, setOnlyMine] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+  const [technicianFilter, setTechnicianFilter] = useState<string>("all");
+  const [technicians, setTechnicians] = useState<TechnicianItem[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
 
   const fetchObligations = () => {
     supabase
       .from("obligations")
-      .select("id, title, status, next_due_date, performed_date, responsible_user_id, customers(name), locations(id, name), service_catalog(code, name, division), profiles(name)")
+      .select("id, title, status, next_due_date, performed_date, responsible_user_id, technician_name, customers(name), locations(id, name), service_catalog(code, name, division), profiles(name)")
       .order("next_due_date", { ascending: true, nullsFirst: false })
       .then(({ data }) => {
         if (data) setObligations(data as unknown as ObligationRow[]);
@@ -93,6 +99,8 @@ export default function Dashboard() {
           }
         }
       });
+    supabase.from("technicians").select("id, name, company").eq("is_active", true).order("name")
+      .then(({ data }) => setTechnicians((data as unknown as TechnicianItem[]) || []));
   }, []);
 
   const now = new Date();
@@ -103,9 +111,9 @@ export default function Dashboard() {
   const nextMonthMonth = nextMonthDate.getMonth();
 
   const baseList = useMemo(() => {
-    if (!onlyMine || !user) return obligations;
-    return obligations.filter(o => o.responsible_user_id === user.id);
-  }, [obligations, onlyMine, user]);
+    if (technicianFilter === "all") return obligations;
+    return obligations.filter(o => o.technician_name === technicianFilter);
+  }, [obligations, technicianFilter]);
 
   const counts = useMemo(() => {
     let expired = 0, expiring = 0, valid = 0, thisM = 0, nextM = 0;
@@ -246,10 +254,10 @@ export default function Dashboard() {
   ];
 
   const statusPills: { key: KpiFilter; label: string; count: number; bg: string; text: string }[] = [
-    { key: "all", label: "Celkem", count: counts.total, bg: "bg-foreground", text: "text-background" },
-    { key: "valid", label: "Platné", count: counts.valid, bg: "bg-green-500/15 dark:bg-green-500/20", text: "text-green-700 dark:text-green-400" },
-    { key: "expiring", label: "Brzy vyprší", count: counts.expiring, bg: "bg-yellow-500/15 dark:bg-yellow-500/20", text: "text-yellow-700 dark:text-yellow-400" },
-    { key: "expired", label: "Expirované", count: counts.expired, bg: "bg-red-500/15 dark:bg-red-500/20", text: "text-red-700 dark:text-red-400" },
+    { key: "all", label: "Celkem", count: counts.total, bg: "bg-muted", text: "text-foreground" },
+    { key: "valid", label: "Platné", count: counts.valid, bg: "bg-green-500/10", text: "text-green-700 dark:text-green-400" },
+    { key: "expiring", label: "Brzy vyprší", count: counts.expiring, bg: "bg-yellow-500/10", text: "text-yellow-700 dark:text-yellow-400" },
+    { key: "expired", label: "Expirované", count: counts.expired, bg: "bg-red-500/10", text: "text-red-700 dark:text-red-400" },
   ];
 
   const ObligationCardRow = ({ ob }: { ob: ObligationRow }) => {
@@ -274,20 +282,21 @@ export default function Dashboard() {
           <p className="text-xs text-muted-foreground truncate mt-0.5">
             {ob.customers?.name || "—"}
             {ob.locations?.name ? ` · ${ob.locations.name}` : ""}
-            {ob.profiles?.name ? ` · ` : ""}
-            {ob.profiles?.name && <span className="inline-flex items-center gap-0.5"><User className="w-3 h-3" />{ob.profiles.name}</span>}
+            {ob.technician_name ? ` · 🔧 ${ob.technician_name}` : ""}
           </p>
         </div>
 
-        {/* Date */}
-        <span className={`text-sm font-bold tabular-nums whitespace-nowrap shrink-0 ${
+        {/* Date - fixed width for alignment */}
+        <span className={`text-sm font-bold tabular-nums whitespace-nowrap shrink-0 w-24 text-right ${
           group === "expired" ? "text-red-600 dark:text-red-400" : group === "expiring" ? "text-yellow-600 dark:text-yellow-400" : "text-foreground"
         }`}>
           {ob.next_due_date ? format(new Date(ob.next_due_date), "d. M. yyyy", { locale: cs }) : "—"}
         </span>
 
-        {/* Badge */}
-        <StatusBadge status={termGroupToStatus[group]} />
+        {/* Badge - fixed width for alignment */}
+        <div className="w-28 shrink-0 flex justify-end">
+          <StatusBadge status={termGroupToStatus[group]} />
+        </div>
 
         {/* Quick actions */}
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
@@ -312,8 +321,8 @@ export default function Dashboard() {
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight">Řídící věž</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">Monitoring termínů revizí a povinností</p>
+            <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">Přehled termínů revizí a povinností</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate("/obligations")}>
@@ -347,20 +356,39 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Range switcher */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground mr-1">Horizont:</span>
-          {RANGE_OPTIONS.map(d => (
-            <Button
-              key={d}
-              variant={rangeDays === d ? "default" : "outline"}
-              size="sm"
-              className="h-7 px-2.5 text-xs"
-              onClick={() => setRangeDays(d)}
+        {/* Range & technician filters */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground mr-1">Horizont:</span>
+            {RANGE_OPTIONS.map(d => (
+              <button
+                key={d}
+                className={`h-7 px-2.5 text-xs rounded-md border font-medium transition-colors ${
+                  rangeDays === d
+                    ? "bg-primary/10 text-primary border-primary/30"
+                    : "bg-card text-muted-foreground border-border hover:bg-accent"
+                }`}
+                onClick={() => setRangeDays(d)}
+              >
+                {d} dnů
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground mr-1">Technik:</span>
+            <select
+              value={technicianFilter}
+              onChange={e => setTechnicianFilter(e.target.value)}
+              className="h-7 px-2 text-xs rounded-md border border-border bg-card text-foreground"
             >
-              {d} dnů
-            </Button>
-          ))}
+              <option value="all">Všichni</option>
+              {technicians.map(t => (
+                <option key={t.id} value={t.name}>
+                  {t.name}{t.company ? ` (${t.company})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
