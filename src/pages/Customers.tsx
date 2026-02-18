@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, ArrowUpDown, X } from "lucide-react";
+import { Plus, Search, ArrowUpDown, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
@@ -45,7 +45,6 @@ const emptyForm = {
   name: "", ico: "", dic: "", type: "firma",
   address_line: "", city: "", zip: "", country: "CZ",
   email: "", phone: "", website: "", note: "",
-  // Contact tab
   contact_name: "", contact_role: "", contact_email: "", contact_phone: "",
 };
 
@@ -62,6 +61,7 @@ export default function Customers() {
   const [filterName, setFilterName] = useState("");
   const [filterIco, setFilterIco] = useState("");
   const [filterPhone, setFilterPhone] = useState("");
+  const [icoDuplicate, setIcoDuplicate] = useState<Customer | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -76,8 +76,24 @@ export default function Customers() {
     if (conData) setContacts(conData);
   };
 
+  // IČO deduplication check
+  const checkIcoDuplicate = useCallback(async (ico: string) => {
+    if (!ico || ico.length < 4) { setIcoDuplicate(null); return; }
+    const { data } = await supabase.from("customers").select("id, name, ico").eq("ico", ico).limit(1);
+    setIcoDuplicate(data && data.length > 0 ? data[0] as Customer : null);
+  }, []);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (icoDuplicate) {
+      toast({ title: "Odběratel s tímto IČO již existuje", variant: "destructive" });
+      return;
+    }
+    // Require IČO for firma
+    if (form.type === "firma" && !form.ico.trim()) {
+      toast({ title: "IČO je povinné pro právnickou osobu", variant: "destructive" });
+      return;
+    }
     setLoading(true);
 
     const { data: customer, error } = await supabase.from("customers").insert({
@@ -101,7 +117,6 @@ export default function Customers() {
       return;
     }
 
-    // Create primary contact if name provided
     if (customer && form.contact_name) {
       await supabase.from("contacts").insert({
         customer_id: customer.id,
@@ -114,8 +129,9 @@ export default function Customers() {
     }
 
     setLoading(false);
-    toast({ title: "Zákazník vytvořen" });
+    toast({ title: "Odběratel vytvořen" });
     setForm({ ...emptyForm });
+    setIcoDuplicate(null);
     setDialogOpen(false);
     fetchData();
   };
@@ -158,7 +174,7 @@ export default function Customers() {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-bold">Zákazníci</h1>
+            <h1 className="text-lg font-bold">Odběratelé</h1>
             <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{filtered.length}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -166,14 +182,13 @@ export default function Customers() {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input placeholder="Hledat..." className="pl-8 h-8 w-48 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setForm({ ...emptyForm }); setIcoDuplicate(null); } }}>
               <DialogTrigger asChild>
-                <Button size="sm" className="h-8"><Plus className="w-3.5 h-3.5 mr-1.5" />Nový zákazník</Button>
+                <Button size="sm" className="h-8"><Plus className="w-3.5 h-3.5 mr-1.5" />Nový odběratel</Button>
               </DialogTrigger>
               <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-                <DialogHeader><DialogTitle>Vytvořit zákazníka</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>Nový odběratel</DialogTitle></DialogHeader>
                 <form onSubmit={handleCreate} className="space-y-4">
-                  {/* Name at top */}
                   <div className="space-y-1.5">
                     <Label>Název *</Label>
                     <Input {...f("name")} required placeholder="Název firmy / jméno" />
@@ -187,18 +202,6 @@ export default function Customers() {
                     </TabsList>
 
                     <TabsContent value="zakladni" className="space-y-4 mt-4">
-                      {/* IČO / DIČ */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label>IČO</Label>
-                          <Input {...f("ico")} placeholder="12345678" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>DIČ</Label>
-                          <Input {...f("dic")} placeholder="CZ12345678" />
-                        </div>
-                      </div>
-
                       {/* Type */}
                       <div className="space-y-1.5">
                         <Label>Typ subjektu</Label>
@@ -217,6 +220,43 @@ export default function Customers() {
                               <span className="text-sm">{opt.label}</span>
                             </label>
                           ))}
+                        </div>
+                      </div>
+
+                      {/* IČO / DIČ with dedup */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label>IČO {form.type === "firma" && "*"}</Label>
+                          <Input
+                            value={form.ico}
+                            onChange={e => {
+                              setForm(prev => ({ ...prev, ico: e.target.value }));
+                              checkIcoDuplicate(e.target.value.trim());
+                            }}
+                            placeholder="12345678"
+                            className={icoDuplicate ? "border-destructive" : ""}
+                          />
+                          {icoDuplicate && (
+                            <div className="flex items-start gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/30">
+                              <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                              <div className="text-xs">
+                                <p className="font-medium text-destructive">IČO již existuje: {icoDuplicate.name}</p>
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  size="sm"
+                                  className="h-auto p-0 text-xs"
+                                  onClick={() => { setDialogOpen(false); navigate(`/customers/${icoDuplicate.id}`); }}
+                                >
+                                  Otevřít existujícího odběratele →
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>DIČ</Label>
+                          <Input {...f("dic")} placeholder="CZ12345678" />
                         </div>
                       </div>
 
@@ -247,7 +287,6 @@ export default function Customers() {
                         </Select>
                       </div>
 
-                      {/* Direct contact */}
                       <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                           <Label>E-mail</Label>
@@ -268,11 +307,11 @@ export default function Customers() {
                       <p className="text-xs text-muted-foreground">Přidejte primární kontaktní osobu</p>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label>Jméno / Název *</Label>
+                          <Label>Jméno</Label>
                           <Input {...f("contact_name")} placeholder="Jan Novák" />
                         </div>
                         <div className="space-y-1.5">
-                          <Label>Pozice / typ kontaktu</Label>
+                          <Label>Pozice</Label>
                           <Input {...f("contact_role")} placeholder="Jednatel" />
                         </div>
                       </div>
@@ -291,13 +330,13 @@ export default function Customers() {
                     <TabsContent value="popis" className="space-y-4 mt-4">
                       <div className="space-y-1.5">
                         <Label>Poznámka</Label>
-                        <Textarea {...f("note")} placeholder="Interní poznámka k zákazníkovi..." rows={4} />
+                        <Textarea {...f("note")} placeholder="Interní poznámka k odběrateli..." rows={4} />
                       </div>
                     </TabsContent>
                   </Tabs>
 
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Ukládání..." : "Vytvořit zákazníka"}
+                  <Button type="submit" className="w-full" disabled={loading || !!icoDuplicate}>
+                    {loading ? "Ukládání..." : "Vytvořit odběratele"}
                   </Button>
                 </form>
               </DialogContent>
@@ -305,7 +344,7 @@ export default function Customers() {
           </div>
         </div>
 
-        {/* Table */}
+        {/* Table with IČO and Město columns */}
         <div className="flex-1 overflow-auto">
           <Table>
             <TableHeader>
@@ -317,16 +356,15 @@ export default function Customers() {
                 <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("ico")}>
                   <span className="inline-flex items-center gap-1">IČO <ArrowUpDown className="w-3 h-3" /></span>
                 </TableHead>
+                <TableHead>Město</TableHead>
                 <TableHead>Telefon</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Adresa</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map(c => {
                 const con = getContact(c.id);
                 const isSelected = selectedId === c.id;
-                const addr = [c.address_line, c.city, c.zip].filter(Boolean).join(", ") || c.billing_address || "—";
                 return (
                   <TableRow
                     key={c.id}
@@ -337,16 +375,16 @@ export default function Customers() {
                     <TableCell className="px-3"><Checkbox checked={isSelected} /></TableCell>
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{c.ico || "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{c.city || "—"}</TableCell>
                     <TableCell className="text-sm">{con?.phone || c.phone || "—"}</TableCell>
                     <TableCell className="text-sm">{con?.email || c.email || "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{addr}</TableCell>
                   </TableRow>
                 );
               })}
               {filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
-                    Žádní zákazníci {search ? "nenalezeni" : ""}
+                    Žádní odběratelé {search ? "nenalezeni" : ""}
                   </TableCell>
                 </TableRow>
               )}
