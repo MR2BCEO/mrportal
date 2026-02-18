@@ -9,8 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge, DivisionBadge } from "@/components/StatusBadge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Box, ClipboardCheck, FileSpreadsheet, Pencil, Trash2, Save, X } from "lucide-react";
+import { ArrowLeft, Box, ClipboardCheck, FileSpreadsheet, Pencil, Trash2, Save, X, Plus, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { cs } from "date-fns/locale";
 import DMRevizeImport from "@/components/DMRevizeImport";
 
 export default function LocationDetail() {
@@ -156,18 +158,55 @@ export default function LocationDetail() {
         </TabsList>
 
         <TabsContent value="obligations" className="mt-4 space-y-3">
-          {obligations.map((ob: any) => (
-            <Card key={ob.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/obligations/${ob.id}`)}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <p className="font-semibold">{ob.title}</p>
-                <div className="flex items-center gap-2">
-                  {(ob.service_catalog as any)?.division && <DivisionBadge division={(ob.service_catalog as any).division} />}
-                  <StatusBadge status={ob.status} />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {obligations.length === 0 && <p className="text-sm text-muted-foreground py-4">Žádné povinnosti</p>}
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => navigate(`/obligations/new?location=${id}&customer=${(location.customers as any)?.id}`)}>
+              <Plus className="w-3.5 h-3.5 mr-1.5" />Nová revize
+            </Button>
+          </div>
+          {obligations.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">Žádné povinnosti</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-3 font-medium text-muted-foreground">Služba / Název</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Divize</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Expirace</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Stav</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {obligations.map((ob: any) => {
+                    const isOverdue = ob.next_due_date && new Date(ob.next_due_date) < new Date();
+                    return (
+                      <tr
+                        key={ob.id}
+                        className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
+                        onClick={() => navigate(`/obligations/${ob.id}`)}
+                      >
+                        <td className="p-3 font-medium">
+                          {(ob.service_catalog as any) ? `${(ob.service_catalog as any).code} – ${(ob.service_catalog as any).name}` : ob.title}
+                        </td>
+                        <td className="p-3">
+                          {(ob.service_catalog as any)?.division && <DivisionBadge division={(ob.service_catalog as any).division} />}
+                        </td>
+                        <td className={`p-3 whitespace-nowrap ${isOverdue ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                          {ob.next_due_date ? (
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5" />
+                              {format(new Date(ob.next_due_date), "d. M. yyyy", { locale: cs })}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td className="p-3"><StatusBadge status={ob.status} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="assets" className="mt-4 space-y-3">
