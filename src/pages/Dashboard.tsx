@@ -181,12 +181,12 @@ export default function Dashboard() {
     fetchObligations();
   };
 
-  const kpiCards: { key: KpiFilter; label: string; count: number; icon: typeof AlertTriangle; color: string; bgColor: string }[] = [
-    { key: "expired", label: "Po termínu", count: counts.expired, icon: AlertTriangle, color: "text-red-600", bgColor: "bg-red-100 dark:bg-red-900/30" },
-    { key: "expiring", label: "Brzy vyprší", count: counts.expiring, icon: Clock, color: "text-yellow-600", bgColor: "bg-yellow-100 dark:bg-yellow-900/30" },
-    { key: "this_month", label: "Tento měsíc", count: counts.thisMonth, icon: CalendarDays, color: "text-blue-600", bgColor: "bg-blue-100 dark:bg-blue-900/30" },
-    { key: "next_month", label: "Příští měsíc", count: counts.nextMonth, icon: CalendarPlus, color: "text-sky-500", bgColor: "bg-sky-100 dark:bg-sky-900/30" },
-    { key: "needs_info", label: "Chybí datum", count: counts.needsInfo, icon: HelpCircle, color: "text-muted-foreground", bgColor: "bg-muted" },
+  const kpiCards: { key: KpiFilter; label: string; count: number; icon: typeof AlertTriangle; color: string; bgColor: string; pillBg: string; pillText: string }[] = [
+    { key: "expired", label: "Expirované", count: counts.expired, icon: AlertTriangle, color: "text-red-600", bgColor: "bg-red-100 dark:bg-red-900/30", pillBg: "bg-red-100 dark:bg-red-900/40 border-red-200 dark:border-red-800", pillText: "text-red-700 dark:text-red-300" },
+    { key: "expiring", label: "Brzy vyprší", count: counts.expiring, icon: Clock, color: "text-yellow-600", bgColor: "bg-yellow-100 dark:bg-yellow-900/30", pillBg: "bg-yellow-100 dark:bg-yellow-900/40 border-yellow-200 dark:border-yellow-800", pillText: "text-yellow-700 dark:text-yellow-300" },
+    { key: "this_month", label: "Tento měsíc", count: counts.thisMonth, icon: CalendarDays, color: "text-blue-600", bgColor: "bg-blue-100 dark:bg-blue-900/30", pillBg: "bg-blue-100 dark:bg-blue-900/40 border-blue-200 dark:border-blue-800", pillText: "text-blue-700 dark:text-blue-300" },
+    { key: "next_month", label: "Příští měsíc", count: counts.nextMonth, icon: CalendarPlus, color: "text-sky-500", bgColor: "bg-sky-100 dark:bg-sky-900/30", pillBg: "bg-sky-100 dark:bg-sky-900/40 border-sky-200 dark:border-sky-800", pillText: "text-sky-700 dark:text-sky-300" },
+    { key: "needs_info", label: "Chybí datum", count: counts.needsInfo, icon: HelpCircle, color: "text-muted-foreground", bgColor: "bg-muted", pillBg: "bg-muted border-border", pillText: "text-muted-foreground" },
   ];
 
   return (
@@ -204,25 +204,20 @@ export default function Dashboard() {
       </div>
 
       {/* A) KPI Cards – clickable filters */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="flex flex-wrap gap-2">
         {kpiCards.map(kpi => {
           const isActive = kpiFilter === kpi.key;
           return (
-            <Card
+            <button
               key={kpi.key}
-              className={`cursor-pointer transition-all hover:shadow-md ${isActive ? "ring-2 ring-primary shadow-md" : ""}`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition-all cursor-pointer ${kpi.pillBg} ${kpi.pillText} ${isActive ? "ring-2 ring-primary ring-offset-2 shadow-md" : "hover:shadow-sm"}`}
               onClick={() => setKpiFilter(isActive ? null : kpi.key)}
             >
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${kpi.bgColor} ${kpi.color}`}>
-                  <kpi.icon className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{kpi.count}</p>
-                  <p className="text-[11px] text-muted-foreground leading-tight">{kpi.label}</p>
-                </div>
-              </CardContent>
-            </Card>
+              {kpi.label}
+              <span className={`inline-flex items-center justify-center min-w-[20px] h-5 rounded-full px-1.5 text-xs font-bold ${isActive ? "bg-primary text-primary-foreground" : kpi.bgColor + " " + kpi.color}`}>
+                {kpi.count}
+              </span>
+            </button>
           );
         })}
       </div>
