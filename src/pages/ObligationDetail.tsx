@@ -1,16 +1,15 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StatusBadge, DomainBadge } from "@/components/StatusBadge";
-import { ArrowLeft, FileText, History, Upload, Info } from "lucide-react";
+import { StatusBadge, DivisionBadge } from "@/components/StatusBadge";
+import { ArrowLeft, FileText, History, Upload, Info, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { cs } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function ObligationDetail() {
@@ -30,7 +29,7 @@ export default function ObligationDetail() {
 
   const fetchData = async () => {
     const { data: ob } = await supabase.from("obligations")
-      .select("*, customers(name), locations(name), assets(name), obligation_types(code, name, domain), profiles!obligations_responsible_user_id_fkey(name, email)")
+      .select("*, customers(name), locations(name), assets(name), service_catalog(code, name, division, group_name), profiles!obligations_responsible_user_id_fkey(name, email)")
       .eq("id", id).single();
     setObligation(ob);
 
@@ -56,8 +55,6 @@ export default function ObligationDetail() {
       return;
     }
 
-    const { data: urlData } = supabase.storage.from("documents").getPublicUrl(filePath);
-
     await supabase.from("documents").insert({
       obligation_id: id,
       file_url: filePath,
@@ -69,6 +66,20 @@ export default function ObligationDetail() {
 
     toast({ title: "Dokument nahrán" });
     setUploading(false);
+    fetchData();
+  };
+
+  const markDone = async () => {
+    if (!id) return;
+    await supabase.from("obligations").update({ status: "DONE" as any }).eq("id", id);
+    toast({ title: "Označeno jako Hotovo" });
+    fetchData();
+  };
+
+  const markArchived = async () => {
+    if (!id) return;
+    await supabase.from("obligations").update({ status: "ARCHIVED" as any }).eq("id", id);
+    toast({ title: "Archivováno" });
     fetchData();
   };
 
@@ -84,8 +95,11 @@ export default function ObligationDetail() {
     UPDATED: "Aktualizováno",
     STATUS_CHANGED: "Změna statusu",
     DOCUMENT_ADDED: "Přidán dokument",
+    IMPORTED: "Importováno",
     COMMENT: "Komentář",
   };
+
+  const service = obligation.service_catalog as any;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -94,9 +108,9 @@ export default function ObligationDetail() {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div className="flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold">{obligation.title}</h1>
-            <DomainBadge domain={obligation.domain} />
+            {service?.division && <DivisionBadge division={service.division} />}
             <StatusBadge status={obligation.status} />
           </div>
           <p className="text-sm text-muted-foreground">
@@ -104,13 +118,24 @@ export default function ObligationDetail() {
             {(obligation.assets as any)?.name ? ` · ${(obligation.assets as any).name}` : ""}
           </p>
         </div>
+        <div className="flex gap-2">
+          {obligation.status !== "DONE" && obligation.status !== "ARCHIVED" && (
+            <Button variant="outline" size="sm" onClick={markDone}>
+              <CheckCircle2 className="w-4 h-4 mr-1" />Hotovo
+            </Button>
+          )}
+          {obligation.status === "DONE" && (
+            <Button variant="ghost" size="sm" onClick={markArchived}>Archivovat</Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4 space-y-2">
-            <p className="text-xs text-muted-foreground font-medium">Typ</p>
-            <p className="font-semibold">{(obligation.obligation_types as any)?.name}</p>
+            <p className="text-xs text-muted-foreground font-medium">Služba</p>
+            <p className="font-semibold">{service?.code} – {service?.name || "—"}</p>
+            <p className="text-xs text-muted-foreground">{service?.group_name}</p>
           </CardContent>
         </Card>
         <Card>
@@ -121,9 +146,9 @@ export default function ObligationDetail() {
         </Card>
         <Card>
           <CardContent className="p-4 space-y-2">
-            <p className="text-xs text-muted-foreground font-medium">Příští termín</p>
+            <p className="text-xs text-muted-foreground font-medium">Expirace / příští termín</p>
             <p className="font-semibold">{obligation.next_due_date ? format(new Date(obligation.next_due_date), "d. M. yyyy", { locale: cs }) : "—"}</p>
-            {obligation.periodicity_months && <p className="text-xs text-muted-foreground">Periodicita: {obligation.periodicity_months} měs.</p>}
+            {obligation.quantity && <p className="text-xs text-muted-foreground">Počet: {obligation.quantity} ks</p>}
           </CardContent>
         </Card>
       </div>
@@ -131,7 +156,7 @@ export default function ObligationDetail() {
       {obligation.findings_summary && (
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground font-medium mb-1">Shrnutí závad / doporučení</p>
+            <p className="text-xs text-muted-foreground font-medium mb-1">Poznámka</p>
             <p className="text-sm">{obligation.findings_summary}</p>
           </CardContent>
         </Card>

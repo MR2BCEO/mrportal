@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StatusBadge, DomainBadge } from "@/components/StatusBadge";
-import { ArrowLeft, MapPin, ClipboardCheck, Plus, Users } from "lucide-react";
-import { format } from "date-fns";
-import { cs } from "date-fns/locale";
+import { StatusBadge, DivisionBadge } from "@/components/StatusBadge";
+import { ArrowLeft, MapPin, ClipboardCheck, Users } from "lucide-react";
 
 export default function CustomerDetail() {
   const { id } = useParams();
@@ -21,7 +19,7 @@ export default function CustomerDetail() {
     if (!id) return;
     supabase.from("customers").select("*").eq("id", id).single().then(({ data }) => setCustomer(data));
     supabase.from("locations").select("*").eq("customer_id", id).order("name").then(({ data }) => setLocations(data || []));
-    supabase.from("obligations").select("id, title, domain, status, next_due_date, obligation_types(code, name), locations(name)").eq("customer_id", id).order("next_due_date").then(({ data }) => setObligations(data || []));
+    supabase.from("obligations").select("id, title, status, next_due_date, service_catalog(code, name, division), locations(name)").eq("customer_id", id).order("next_due_date").then(({ data }) => setObligations(data || []));
     supabase.from("contacts").select("*").eq("customer_id", id).order("is_primary", { ascending: false }).then(({ data }) => setContacts(data || []));
   }, [id]);
 
@@ -67,7 +65,7 @@ export default function CustomerDetail() {
                   <p className="text-xs text-muted-foreground">{(ob.locations as any)?.name}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <DomainBadge domain={ob.domain} />
+                  {(ob.service_catalog as any)?.division && <DivisionBadge division={(ob.service_catalog as any).division} />}
                   <StatusBadge status={ob.status} />
                 </div>
               </CardContent>

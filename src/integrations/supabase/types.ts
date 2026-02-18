@@ -40,37 +40,55 @@ export type Database = {
           asset_code: string | null
           category: string | null
           created_at: string
+          external_id: string | null
+          extra_json: Json | null
           id: string
+          inventory_no: string | null
           location_id: string
           manufacturer: string | null
+          model: string | null
           name: string
           note: string | null
+          room: string | null
           serial_number: string | null
           updated_at: string
+          year: string | null
         }
         Insert: {
           asset_code?: string | null
           category?: string | null
           created_at?: string
+          external_id?: string | null
+          extra_json?: Json | null
           id?: string
+          inventory_no?: string | null
           location_id: string
           manufacturer?: string | null
+          model?: string | null
           name: string
           note?: string | null
+          room?: string | null
           serial_number?: string | null
           updated_at?: string
+          year?: string | null
         }
         Update: {
           asset_code?: string | null
           category?: string | null
           created_at?: string
+          external_id?: string | null
+          extra_json?: Json | null
           id?: string
+          inventory_no?: string | null
           location_id?: string
           manufacturer?: string | null
+          model?: string | null
           name?: string
           note?: string | null
+          room?: string | null
           serial_number?: string | null
           updated_at?: string
+          year?: string | null
         }
         Relationships: [
           {
@@ -345,7 +363,9 @@ export type Database = {
           obligation_type_id: string
           performed_date: string | null
           periodicity_months: number | null
+          quantity: number | null
           responsible_user_id: string | null
+          service_id: string | null
           status: Database["public"]["Enums"]["obligation_status"]
           technician_company: string | null
           technician_email: string | null
@@ -366,7 +386,9 @@ export type Database = {
           obligation_type_id: string
           performed_date?: string | null
           periodicity_months?: number | null
+          quantity?: number | null
           responsible_user_id?: string | null
+          service_id?: string | null
           status?: Database["public"]["Enums"]["obligation_status"]
           technician_company?: string | null
           technician_email?: string | null
@@ -387,7 +409,9 @@ export type Database = {
           obligation_type_id?: string
           performed_date?: string | null
           periodicity_months?: number | null
+          quantity?: number | null
           responsible_user_id?: string | null
+          service_id?: string | null
           status?: Database["public"]["Enums"]["obligation_status"]
           technician_company?: string | null
           technician_email?: string | null
@@ -432,6 +456,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "obligations_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service_catalog"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
@@ -455,6 +486,36 @@ export type Database = {
           id?: string
           name?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      service_catalog: {
+        Row: {
+          code: string
+          created_at: string
+          division: string
+          group_name: string
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          division: string
+          group_name: string
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          division?: string
+          group_name?: string
+          id?: string
+          is_active?: boolean
+          name?: string
         }
         Relationships: []
       }
@@ -504,13 +565,14 @@ export type Database = {
     Enums: {
       app_role: "admin" | "pm"
       customer_type: "firma" | "instituce" | "fo"
-      doc_kind: "REVIZNI_ZPRAVA" | "FOTO" | "JINE"
+      doc_kind: "REVIZNI_ZPRAVA" | "FOTO" | "JINE" | "PROTOKOL"
       history_action:
         | "CREATED"
         | "UPDATED"
         | "STATUS_CHANGED"
         | "DOCUMENT_ADDED"
         | "COMMENT"
+        | "IMPORTED"
       obligation_domain: "REVIZE" | "BOZP" | "PO"
       obligation_status:
         | "DRAFT"
@@ -520,6 +582,8 @@ export type Database = {
         | "DONE"
         | "NEEDS_INFO"
         | "ARCHIVED"
+        | "PLANNED"
+        | "IN_PROGRESS"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -649,13 +713,14 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "pm"],
       customer_type: ["firma", "instituce", "fo"],
-      doc_kind: ["REVIZNI_ZPRAVA", "FOTO", "JINE"],
+      doc_kind: ["REVIZNI_ZPRAVA", "FOTO", "JINE", "PROTOKOL"],
       history_action: [
         "CREATED",
         "UPDATED",
         "STATUS_CHANGED",
         "DOCUMENT_ADDED",
         "COMMENT",
+        "IMPORTED",
       ],
       obligation_domain: ["REVIZE", "BOZP", "PO"],
       obligation_status: [
@@ -666,6 +731,8 @@ export const Constants = {
         "DONE",
         "NEEDS_INFO",
         "ARCHIVED",
+        "PLANNED",
+        "IN_PROGRESS",
       ],
     },
   },
