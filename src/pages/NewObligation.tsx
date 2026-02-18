@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, ArrowRight, Check, Plus, Upload, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Plus, Upload, AlertTriangle, Globe, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +60,37 @@ export default function NewObligation() {
   const [newCustNote, setNewCustNote] = useState("");
   const [newCustContactName, setNewCustContactName] = useState("");
   const [newCustIcoDuplicate, setNewCustIcoDuplicate] = useState<CustomerItem | null>(null);
+  const [loadingAres, setLoadingAres] = useState(false);
+
+  const fetchFromAres = async () => {
+    const ico = newCustIco.trim();
+    if (!ico || ico.length < 2) {
+      toast({ title: "Zadejte IČO", variant: "destructive" });
+      return;
+    }
+    setLoadingAres(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ares-lookup", {
+        body: { ico },
+      });
+      if (error) throw error;
+      if (data.error) {
+        toast({ title: "Nenalezeno", description: data.error, variant: "destructive" });
+        return;
+      }
+      if (data.name) setNewCustName(data.name);
+      if (data.dic) setNewCustDic(data.dic);
+      if (data.address_line) setNewCustAddress(data.address_line);
+      if (data.city) setNewCustCity(data.city);
+      if (data.zip) setNewCustZip(data.zip);
+      checkNewCustIco(ico);
+      toast({ title: "Údaje načteny z registru" });
+    } catch (err: any) {
+      toast({ title: "Chyba", description: err.message || "Nepodařilo se načíst z ARES", variant: "destructive" });
+    } finally {
+      setLoadingAres(false);
+    }
+  };
 
   // New location dialog
   const [newLocOpen, setNewLocOpen] = useState(false);
@@ -386,6 +417,17 @@ export default function NewObligation() {
                           <Input placeholder="CZ12345678" value={newCustDic} onChange={e => setNewCustDic(e.target.value)} />
                         </div>
                       </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={!newCustIco.trim() || loadingAres}
+                        onClick={fetchFromAres}
+                      >
+                        {loadingAres ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Globe className="w-3.5 h-3.5 mr-1.5" />}
+                        {loadingAres ? "Načítám..." : "Načíst údaje z registru (ARES)"}
+                      </Button>
                       <div className="space-y-1.5">
                         <Label>Ulice</Label>
                         <Input placeholder="Josefa Šavla 1271/12" value={newCustAddress} onChange={e => setNewCustAddress(e.target.value)} />
