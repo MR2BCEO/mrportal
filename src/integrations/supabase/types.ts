@@ -143,40 +143,61 @@ export type Database = {
       }
       customers: {
         Row: {
+          address_line: string | null
           billing_address: string | null
+          city: string | null
+          country: string | null
           created_at: string
           dic: string | null
+          email: string | null
           ico: string | null
           id: string
           name: string
           note: string | null
+          phone: string | null
           tags: string[] | null
           type: Database["public"]["Enums"]["customer_type"]
           updated_at: string
+          website: string | null
+          zip: string | null
         }
         Insert: {
+          address_line?: string | null
           billing_address?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           dic?: string | null
+          email?: string | null
           ico?: string | null
           id?: string
           name: string
           note?: string | null
+          phone?: string | null
           tags?: string[] | null
           type?: Database["public"]["Enums"]["customer_type"]
           updated_at?: string
+          website?: string | null
+          zip?: string | null
         }
         Update: {
+          address_line?: string | null
           billing_address?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           dic?: string | null
+          email?: string | null
           ico?: string | null
           id?: string
           name?: string
           note?: string | null
+          phone?: string | null
           tags?: string[] | null
           type?: Database["public"]["Enums"]["customer_type"]
           updated_at?: string
+          website?: string | null
+          zip?: string | null
         }
         Relationships: []
       }
