@@ -13,8 +13,8 @@ import { cs } from "date-fns/locale";
 const DEFAULT_THRESHOLD_DAYS = 30;
 
 // Compute term group from next_due_date (NOT from DB status)
-function computeTermGroup(nextDueDate: string | null, thresholdDays: number): "valid" | "expiring" | "expired" | "needs_info" {
-  if (!nextDueDate) return "needs_info";
+function computeTermGroup(nextDueDate: string | null, thresholdDays: number): "valid" | "expiring" | "expired" {
+  if (!nextDueDate) return "expired";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(nextDueDate);
@@ -30,7 +30,6 @@ const termGroupLabel: Record<string, string> = {
   valid: "Platná",
   expiring: "Brzy expiruje",
   expired: "Expirovaná",
-  needs_info: "Chybí údaje",
 };
 
 export default function Obligations() {
@@ -95,15 +94,14 @@ export default function Obligations() {
 
   // Stats computed from next_due_date
   const stats = useMemo(() => {
-    let valid = 0, expiring = 0, expired = 0, needsInfo = 0;
+    let valid = 0, expiring = 0, expired = 0;
     obligations.forEach(o => {
       const g = computeTermGroup(o.next_due_date, thresholdDays);
       if (g === "valid") valid++;
       else if (g === "expiring") expiring++;
       else if (g === "expired") expired++;
-      else if (g === "needs_info") needsInfo++;
     });
-    return { total: obligations.length, valid, expiring, expired, needsInfo };
+    return { total: obligations.length, valid, expiring, expired };
   }, [obligations, thresholdDays]);
 
   const filtered = obligations.filter(o => {
@@ -112,7 +110,6 @@ export default function Obligations() {
     if (statusFilter === "valid" && group !== "valid") return false;
     if (statusFilter === "expiring" && group !== "expiring") return false;
     if (statusFilter === "expired" && group !== "expired") return false;
-    if (statusFilter === "needs_info" && group !== "needs_info") return false;
     // Customer filter
     if (customerFilter !== "all" && (o.customers as any)?.name !== customerFilter) return false;
     // Location filter
@@ -234,16 +231,6 @@ export default function Obligations() {
         >
           Expirované <span className="font-bold ml-1">{stats.expired}</span>
         </button>
-        {stats.needsInfo > 0 && (
-          <button
-            onClick={() => setStatusFilter("needs_info")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-              statusFilter === "needs_info" ? "bg-gray-600 text-white border-gray-600" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
-            }`}
-          >
-            Chybí údaje <span className="font-bold ml-1">{stats.needsInfo}</span>
-          </button>
-        )}
       </div>
 
       {/* Table card */}
@@ -308,7 +295,6 @@ export default function Obligations() {
               <SelectItem value="valid">Platná</SelectItem>
               <SelectItem value="expiring">Brzy expiruje</SelectItem>
               <SelectItem value="expired">Expirovaná</SelectItem>
-              <SelectItem value="needs_info">Chybí údaje</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" className="h-8" onClick={handleExportCSV}>
@@ -371,8 +357,7 @@ export default function Obligations() {
                     <StatusBadge status={
                       group === "valid" ? "PLANNED" :
                       group === "expiring" ? "DUE_SOON" :
-                      group === "expired" ? "OVERDUE" :
-                      "NEEDS_INFO"
+                      "OVERDUE"
                     } />
                   </TableCell>
                   <TableCell>

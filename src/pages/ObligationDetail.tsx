@@ -67,10 +67,14 @@ export default function ObligationDetail() {
 
   const saveEdit = async () => {
     if (!id) return;
+    if (!editForm.next_due_date) {
+      toast({ title: "Chyba", description: "Expirace (příští termín) je povinná.", variant: "destructive" });
+      return;
+    }
     const { error } = await supabase.from("obligations").update({
       title: editForm.title,
       performed_date: editForm.performed_date || null,
-      next_due_date: editForm.next_due_date || null,
+      next_due_date: editForm.next_due_date,
       technician_name: editForm.technician_name || null,
       technician_company: editForm.technician_company || null,
       technician_phone: editForm.technician_phone || null,
@@ -240,8 +244,8 @@ export default function ObligationDetail() {
                 <Input type="date" value={editForm.performed_date} onChange={e => setEditForm({ ...editForm, performed_date: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Expirace / příští termín</Label>
-                <Input type="date" value={editForm.next_due_date} onChange={e => setEditForm({ ...editForm, next_due_date: e.target.value })} />
+                <Label>Expirace / příští termín *</Label>
+                <Input type="date" value={editForm.next_due_date} onChange={e => setEditForm({ ...editForm, next_due_date: e.target.value })} required />
               </div>
               <div className="space-y-2">
                 <Label>Počet kusů</Label>
