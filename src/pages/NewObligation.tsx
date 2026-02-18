@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -31,17 +31,20 @@ interface CustomerItem {
 
 export default function NewObligation() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { toast } = useToast();
-  const [step, setStep] = useState(0);
+  const prefilledCustomer = searchParams.get("customer") || "";
+  const prefilledLocation = searchParams.get("location") || "";
+  const [step, setStep] = useState(prefilledCustomer && prefilledLocation ? 1 : 0);
   const [saving, setSaving] = useState(false);
 
   // Step 1
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [assets, setAssets] = useState<any[]>([]);
-  const [customerId, setCustomerId] = useState("");
-  const [locationId, setLocationId] = useState("");
+  const [customerId, setCustomerId] = useState(prefilledCustomer);
+  const [locationId, setLocationId] = useState(prefilledLocation);
   const [assetId, setAssetId] = useState("");
 
   // New customer dialog - enhanced quick create
