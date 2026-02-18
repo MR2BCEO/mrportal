@@ -48,9 +48,14 @@ export default function NewObligation() {
   const [newCustOpen, setNewCustOpen] = useState(false);
   const [newCustName, setNewCustName] = useState("");
   const [newCustIco, setNewCustIco] = useState("");
+  const [newCustDic, setNewCustDic] = useState("");
+  const [newCustAddress, setNewCustAddress] = useState("");
   const [newCustCity, setNewCustCity] = useState("");
+  const [newCustZip, setNewCustZip] = useState("");
   const [newCustPhone, setNewCustPhone] = useState("");
   const [newCustEmail, setNewCustEmail] = useState("");
+  const [newCustNote, setNewCustNote] = useState("");
+  const [newCustContactName, setNewCustContactName] = useState("");
   const [newCustIcoDuplicate, setNewCustIcoDuplicate] = useState<CustomerItem | null>(null);
 
   // New location dialog
@@ -122,11 +127,25 @@ export default function NewObligation() {
     const { data } = await supabase.from("customers").insert({
       name: newCustName.trim(),
       ico: newCustIco.trim() || null,
+      dic: newCustDic.trim() || null,
+      address_line: newCustAddress.trim() || null,
       city: newCustCity.trim() || null,
+      zip: newCustZip.trim() || null,
       phone: newCustPhone.trim() || null,
       email: newCustEmail.trim() || null,
+      note: newCustNote.trim() || null,
     }).select("id, name, ico").single();
     if (data) {
+      // Create contact if name provided
+      if (newCustContactName.trim()) {
+        await supabase.from("contacts").insert({
+          customer_id: data.id,
+          name: newCustContactName.trim(),
+          phone: newCustPhone.trim() || null,
+          email: newCustEmail.trim() || null,
+          is_primary: true,
+        });
+      }
       setCustomers(prev => [...prev, data as CustomerItem].sort((a, b) => a.name.localeCompare(b.name)));
       setCustomerId(data.id);
       setNewCustOpen(false);
@@ -137,9 +156,14 @@ export default function NewObligation() {
   const resetNewCustForm = () => {
     setNewCustName("");
     setNewCustIco("");
+    setNewCustDic("");
+    setNewCustAddress("");
     setNewCustCity("");
+    setNewCustZip("");
     setNewCustPhone("");
     setNewCustEmail("");
+    setNewCustNote("");
+    setNewCustContactName("");
     setNewCustIcoDuplicate(null);
   };
 
@@ -308,42 +332,62 @@ export default function NewObligation() {
                     <DialogHeader><DialogTitle>Rychlé vytvoření odběratele</DialogTitle></DialogHeader>
                     <div className="space-y-3">
                       <div className="space-y-1.5">
-                        <Label>Název *</Label>
-                        <Input placeholder="Název firmy / jméno" value={newCustName} onChange={e => setNewCustName(e.target.value)} />
+                        <Label>Název firmy *</Label>
+                        <Input placeholder="Sectron s.r.o." value={newCustName} onChange={e => setNewCustName(e.target.value)} />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label>IČO</Label>
-                        <Input
-                          placeholder="12345678"
-                          value={newCustIco}
-                          onChange={e => { setNewCustIco(e.target.value); checkNewCustIco(e.target.value.trim()); }}
-                          className={newCustIcoDuplicate ? "border-destructive" : ""}
-                        />
-                        {newCustIcoDuplicate && (
-                          <div className="flex items-start gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/30">
-                            <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
-                            <div className="text-xs">
-                              <p className="font-medium text-destructive">IČO již existuje: {newCustIcoDuplicate.name}</p>
-                              <Button
-                                type="button"
-                                variant="link"
-                                size="sm"
-                                className="h-auto p-0 text-xs"
-                                onClick={() => {
-                                  setCustomerId(newCustIcoDuplicate!.id);
-                                  setNewCustOpen(false);
-                                  resetNewCustForm();
-                                }}
-                              >
-                                Použít existujícího odběratele →
-                              </Button>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label>IČO</Label>
+                          <Input
+                            placeholder="12345678"
+                            value={newCustIco}
+                            onChange={e => { setNewCustIco(e.target.value); checkNewCustIco(e.target.value.trim()); }}
+                            className={newCustIcoDuplicate ? "border-destructive" : ""}
+                          />
+                          {newCustIcoDuplicate && (
+                            <div className="flex items-start gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/30">
+                              <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                              <div className="text-xs">
+                                <p className="font-medium text-destructive">IČO již existuje: {newCustIcoDuplicate.name}</p>
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  size="sm"
+                                  className="h-auto p-0 text-xs"
+                                  onClick={() => {
+                                    setCustomerId(newCustIcoDuplicate!.id);
+                                    setNewCustOpen(false);
+                                    resetNewCustForm();
+                                  }}
+                                >
+                                  Použít existujícího odběratele →
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>DIČ</Label>
+                          <Input placeholder="CZ12345678" value={newCustDic} onChange={e => setNewCustDic(e.target.value)} />
+                        </div>
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Město</Label>
-                        <Input placeholder="Frýdek-Místek" value={newCustCity} onChange={e => setNewCustCity(e.target.value)} />
+                        <Label>Ulice</Label>
+                        <Input placeholder="Josefa Šavla 1271/12" value={newCustAddress} onChange={e => setNewCustAddress(e.target.value)} />
+                      </div>
+                      <div className="grid grid-cols-[1fr_100px] gap-3">
+                        <div className="space-y-1.5">
+                          <Label>Město</Label>
+                          <Input placeholder="Mariánské Hory a Hulváky" value={newCustCity} onChange={e => setNewCustCity(e.target.value)} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>PSČ</Label>
+                          <Input placeholder="70900" value={newCustZip} onChange={e => setNewCustZip(e.target.value)} />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Kontaktní osoba</Label>
+                        <Input placeholder="Jan Novák" value={newCustContactName} onChange={e => setNewCustContactName(e.target.value)} />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
@@ -354,6 +398,10 @@ export default function NewObligation() {
                           <Label>E-mail</Label>
                           <Input placeholder="info@firma.cz" value={newCustEmail} onChange={e => setNewCustEmail(e.target.value)} />
                         </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Poznámka</Label>
+                        <Input placeholder="Interní poznámka..." value={newCustNote} onChange={e => setNewCustNote(e.target.value)} />
                       </div>
                       <Button onClick={createCustomer} className="w-full" disabled={!newCustName.trim() || (!!newCustIcoDuplicate)}>
                         {newCustIcoDuplicate ? "Odběratel již existuje" : "Vytvořit"}
