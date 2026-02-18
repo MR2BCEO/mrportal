@@ -258,46 +258,49 @@ export default function Dashboard() {
     const isInProgress = ob.status === "IN_PROGRESS";
     return (
       <div
-        className="flex items-center gap-4 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors group"
+        className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors group"
         onClick={() => navigate(`/obligations/${ob.id}`)}
       >
+        {/* Left color indicator */}
+        <div className={`w-1 self-stretch rounded-full shrink-0 ${
+          group === "expired" ? "bg-red-500" : group === "expiring" ? "bg-yellow-500" : "bg-green-500"
+        }`} />
+
+        {/* Main content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-sm font-semibold truncate">
-              {ob.service_catalog ? `${ob.service_catalog.code} – ${ob.service_catalog.name}` : ob.title}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground truncate">
-            <span>{ob.customers?.name || "—"}</span>
-            <span>·</span>
-            <span>{ob.locations?.name || "—"}</span>
-            {ob.profiles?.name && (
-              <>
-                <span>·</span>
-                <span className="inline-flex items-center gap-0.5"><User className="w-3 h-3" />{ob.profiles.name}</span>
-              </>
-            )}
-          </div>
+          <p className="text-sm font-semibold truncate">
+            {ob.service_catalog ? `${ob.service_catalog.name}` : ob.title}
+          </p>
+          <p className="text-xs text-muted-foreground truncate mt-0.5">
+            {ob.customers?.name || "—"}
+            {ob.locations?.name ? ` · ${ob.locations.name}` : ""}
+            {ob.profiles?.name ? ` · ` : ""}
+            {ob.profiles?.name && <span className="inline-flex items-center gap-0.5"><User className="w-3 h-3" />{ob.profiles.name}</span>}
+          </p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <div className={`text-right ${group === "expired" ? "text-red-600 dark:text-red-400" : group === "expiring" ? "text-yellow-600 dark:text-yellow-400" : "text-muted-foreground"}`}>
-            <p className="text-sm font-bold tabular-nums whitespace-nowrap">
-              {ob.next_due_date ? format(new Date(ob.next_due_date), "d. M. yyyy", { locale: cs }) : "—"}
-            </p>
-          </div>
-          <StatusBadge status={termGroupToStatus[group]} />
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-            {!isDone && (
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-500/10" title="Hotovo" onClick={(e) => handleQuickAction(ob.id, "DONE", e)}>
-                <CheckCircle2 className="w-3.5 h-3.5" />
-              </Button>
-            )}
-            {!isInProgress && !isDone && (
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10" title="Zahájeno" onClick={(e) => handleQuickAction(ob.id, "IN_PROGRESS", e)}>
-                <Play className="w-3.5 h-3.5" />
-              </Button>
-            )}
-          </div>
+
+        {/* Date */}
+        <span className={`text-sm font-bold tabular-nums whitespace-nowrap shrink-0 ${
+          group === "expired" ? "text-red-600 dark:text-red-400" : group === "expiring" ? "text-yellow-600 dark:text-yellow-400" : "text-foreground"
+        }`}>
+          {ob.next_due_date ? format(new Date(ob.next_due_date), "d. M. yyyy", { locale: cs }) : "—"}
+        </span>
+
+        {/* Badge */}
+        <StatusBadge status={termGroupToStatus[group]} />
+
+        {/* Quick actions */}
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
+          {!isDone && (
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-500/10" title="Hotovo" onClick={(e) => handleQuickAction(ob.id, "DONE", e)}>
+              <CheckCircle2 className="w-3.5 h-3.5" />
+            </Button>
+          )}
+          {!isInProgress && !isDone && (
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10" title="Zahájeno" onClick={(e) => handleQuickAction(ob.id, "IN_PROGRESS", e)}>
+              <Play className="w-3.5 h-3.5" />
+            </Button>
+          )}
         </div>
       </div>
     );
