@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, ArrowRight, Check, Plus, Upload } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Plus, Upload, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,12 @@ interface ServiceItem {
   name: string;
 }
 
+interface CustomerItem {
+  id: string;
+  name: string;
+  ico: string | null;
+}
+
 export default function NewObligation() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -31,16 +37,23 @@ export default function NewObligation() {
   const [saving, setSaving] = useState(false);
 
   // Step 1
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<CustomerItem[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [assets, setAssets] = useState<any[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [locationId, setLocationId] = useState("");
   const [assetId, setAssetId] = useState("");
 
-  // New customer/location dialogs
+  // New customer dialog - enhanced quick create
   const [newCustOpen, setNewCustOpen] = useState(false);
   const [newCustName, setNewCustName] = useState("");
+  const [newCustIco, setNewCustIco] = useState("");
+  const [newCustCity, setNewCustCity] = useState("");
+  const [newCustPhone, setNewCustPhone] = useState("");
+  const [newCustEmail, setNewCustEmail] = useState("");
+  const [newCustIcoDuplicate, setNewCustIcoDuplicate] = useState<CustomerItem | null>(null);
+
+  // New location dialog
   const [newLocOpen, setNewLocOpen] = useState(false);
   const [newLocName, setNewLocName] = useState("");
   const [newLocAddress, setNewLocAddress] = useState("");
@@ -61,7 +74,7 @@ export default function NewObligation() {
   const [file, setFile] = useState<File | null>(null);
 
   useEffect(() => {
-    supabase.from("customers").select("id, name").order("name").then(({ data }) => setCustomers(data || []));
+    supabase.from("customers").select("id, name, ico").order("name").then(({ data }) => setCustomers((data || []) as CustomerItem[]));
     supabase.from("service_catalog").select("*").eq("is_active", true).order("division").order("group_name").order("code")
       .then(({ data }) => setServices((data as any as ServiceItem[]) || []));
   }, []);
@@ -84,19 +97,48 @@ export default function NewObligation() {
     }
   }, [locationId]);
 
+  // IČO dedup for quick create
+  const checkNewCustIco = useCallback(async (ico: string) => {
+    if (!ico || ico.length < 4) { setNewCustIcoDuplicate(null); return; }
+    const { data } = await supabase.from("customers").select("id, name, ico").eq("ico", ico).limit(1);
+    setNewCustIcoDuplicate(data && data.length > 0 ? data[0] as CustomerItem : null);
+  }, []);
+
   const divisions = useMemo(() => [...new Set(services.map(s => s.division))], [services]);
   const groups = useMemo(() => [...new Set(services.filter(s => s.division === division).map(s => s.group_name))], [services, division]);
   const filteredServices = useMemo(() => services.filter(s => s.division === division && s.group_name === groupName), [services, division, groupName]);
 
   const createCustomer = async () => {
     if (!newCustName.trim()) return;
-    const { data } = await supabase.from("customers").insert({ name: newCustName.trim() }).select("id, name").single();
+    if (newCustIcoDuplicate) {
+      // Use existing customer
+      setCustomerId(newCustIcoDuplicate.id);
+      setNewCustOpen(false);
+      resetNewCustForm();
+      return;
+    }
+    const { data } = await supabase.from("customers").insert({
+      name: newCustName.trim(),
+      ico: newCustIco.trim() || null,
+      city: newCustCity.trim() || null,
+      phone: newCustPhone.trim() || null,
+      email: newCustEmail.trim() || null,
+    }).select("id, name, ico").single();
     if (data) {
-      setCustomers(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setCustomers(prev => [...prev, data as CustomerItem].sort((a, b) => a.name.localeCompare(b.name)));
       setCustomerId(data.id);
       setNewCustOpen(false);
-      setNewCustName("");
+      resetNewCustForm();
     }
+  };
+
+  const resetNewCustForm = () => {
+    setNewCustName("");
+    setNewCustIco("");
+    setNewCustCity("");
+    setNewCustPhone("");
+    setNewCustEmail("");
+    setNewCustIcoDuplicate(null);
   };
 
   const createLocation = async () => {
@@ -129,7 +171,6 @@ export default function NewObligation() {
     ? `${selectedService.name}${locations.find(l => l.id === locationId)?.name ? ` – ${locations.find(l => l.id === locationId)?.name}` : ""}`
     : "";
 
-  // Map division to legacy domain for backward compat
   const getDomain = (div: string) => {
     if (div.includes("BOZP") || div.includes("požární")) return "BOZP";
     if (div.includes("Školení")) return "BOZP";
@@ -139,7 +180,6 @@ export default function NewObligation() {
   const handleSubmit = async () => {
     setSaving(true);
     try {
-      // Check dedupe
       const dedupeQuery = supabase.from("obligations")
         .select("id, title, status")
         .eq("service_id", serviceId)
@@ -169,7 +209,7 @@ export default function NewObligation() {
         location_id: locationId,
         asset_id: assetId || null,
         domain: getDomain(division) as any,
-        obligation_type_id: serviceId, // legacy FK
+        obligation_type_id: serviceId,
         service_id: serviceId,
         title: autoTitle,
         performed_date: performedDate || null,
@@ -183,7 +223,6 @@ export default function NewObligation() {
 
       if (error) throw error;
 
-      // Upload file if present
       if (file && ob) {
         const filePath = `${ob.id}/${Date.now()}_${file.name}`;
         await supabase.storage.from("documents").upload(filePath, file);
@@ -243,16 +282,69 @@ export default function NewObligation() {
                 <Select value={customerId} onValueChange={setCustomerId}>
                   <SelectTrigger className="flex-1"><SelectValue placeholder="Vyberte odběratele" /></SelectTrigger>
                   <SelectContent>
-                    {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    {customers.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}{c.ico ? ` (IČO: ${c.ico})` : ""}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <Dialog open={newCustOpen} onOpenChange={setNewCustOpen}>
+                <Dialog open={newCustOpen} onOpenChange={(open) => { setNewCustOpen(open); if (!open) resetNewCustForm(); }}>
                   <DialogTrigger asChild><Button variant="outline" size="icon"><Plus className="w-4 h-4" /></Button></DialogTrigger>
                   <DialogContent>
-                    <DialogHeader><DialogTitle>Nový odběratel</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>Rychlé vytvoření odběratele</DialogTitle></DialogHeader>
                     <div className="space-y-3">
-                      <Input placeholder="Název" value={newCustName} onChange={e => setNewCustName(e.target.value)} />
-                      <Button onClick={createCustomer} className="w-full">Vytvořit</Button>
+                      <div className="space-y-1.5">
+                        <Label>Název *</Label>
+                        <Input placeholder="Název firmy / jméno" value={newCustName} onChange={e => setNewCustName(e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>IČO</Label>
+                        <Input
+                          placeholder="12345678"
+                          value={newCustIco}
+                          onChange={e => { setNewCustIco(e.target.value); checkNewCustIco(e.target.value.trim()); }}
+                          className={newCustIcoDuplicate ? "border-destructive" : ""}
+                        />
+                        {newCustIcoDuplicate && (
+                          <div className="flex items-start gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/30">
+                            <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                            <div className="text-xs">
+                              <p className="font-medium text-destructive">IČO již existuje: {newCustIcoDuplicate.name}</p>
+                              <Button
+                                type="button"
+                                variant="link"
+                                size="sm"
+                                className="h-auto p-0 text-xs"
+                                onClick={() => {
+                                  setCustomerId(newCustIcoDuplicate!.id);
+                                  setNewCustOpen(false);
+                                  resetNewCustForm();
+                                }}
+                              >
+                                Použít existujícího odběratele →
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Město</Label>
+                        <Input placeholder="Frýdek-Místek" value={newCustCity} onChange={e => setNewCustCity(e.target.value)} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label>Telefon</Label>
+                          <Input placeholder="+420..." value={newCustPhone} onChange={e => setNewCustPhone(e.target.value)} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>E-mail</Label>
+                          <Input placeholder="info@firma.cz" value={newCustEmail} onChange={e => setNewCustEmail(e.target.value)} />
+                        </div>
+                      </div>
+                      <Button onClick={createCustomer} className="w-full" disabled={!newCustName.trim() || (!!newCustIcoDuplicate)}>
+                        {newCustIcoDuplicate ? "Odběratel již existuje" : "Vytvořit"}
+                      </Button>
                     </div>
                   </DialogContent>
                 </Dialog>
