@@ -287,14 +287,14 @@ export default function Dashboard() {
         </div>
 
         {/* Date - fixed width for alignment */}
-        <span className={`text-sm font-bold tabular-nums whitespace-nowrap shrink-0 w-24 text-right ${
+        <span className={`text-sm font-bold tabular-nums whitespace-nowrap shrink-0 w-28 text-right ${
           group === "expired" ? "text-red-600 dark:text-red-400" : group === "expiring" ? "text-yellow-600 dark:text-yellow-400" : "text-foreground"
         }`}>
           {ob.next_due_date ? format(new Date(ob.next_due_date), "d. M. yyyy", { locale: cs }) : "—"}
         </span>
 
         {/* Badge - fixed width for alignment */}
-        <div className="w-28 shrink-0 flex justify-end">
+        <div className="w-32 shrink-0 flex justify-end">
           <StatusBadge status={termGroupToStatus[group]} />
         </div>
 
