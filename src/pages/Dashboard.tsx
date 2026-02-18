@@ -288,9 +288,7 @@ export default function Dashboard() {
 
         {/* Date + Badge in fixed-width right section for perfect alignment */}
         <div className="flex items-center gap-3 shrink-0">
-          <span className={`text-sm font-bold tabular-nums whitespace-nowrap w-[5.5rem] text-right ${
-            group === "expired" ? "text-red-600 dark:text-red-400" : group === "expiring" ? "text-yellow-600 dark:text-yellow-400" : "text-foreground"
-          }`}>
+          <span className="text-sm font-bold tabular-nums whitespace-nowrap w-[5.5rem] text-right text-foreground">
             {ob.next_due_date ? format(new Date(ob.next_due_date), "d. M. yyyy", { locale: cs }) : "—"}
           </span>
           <div className="w-[7rem] flex justify-start">
