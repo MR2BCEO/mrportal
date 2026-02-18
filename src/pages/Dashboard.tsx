@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
-  AlertTriangle, Clock, CalendarDays, CalendarPlus, HelpCircle, Plus,
+  AlertTriangle, Clock, CalendarDays, CalendarPlus, Plus,
   CheckCircle2, Play, MapPin, ArrowRight, RotateCcw, User, Shield, Eye
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -16,10 +16,10 @@ import { useToast } from "@/hooks/use-toast";
 const DEFAULT_THRESHOLD_DAYS = 30;
 const RANGE_OPTIONS = [7, 14, 30, 60] as const;
 
-type TermGroup = "valid" | "expiring" | "expired" | "needs_info";
+type TermGroup = "valid" | "expiring" | "expired";
 
 function computeTermGroup(nextDueDate: string | null, rangeDays: number): TermGroup {
-  if (!nextDueDate) return "needs_info";
+  if (!nextDueDate) return "expired"; // legacy/null treated as expired
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(nextDueDate);
@@ -41,7 +41,6 @@ const termGroupToStatus: Record<TermGroup, string> = {
   valid: "PLANNED",
   expiring: "DUE_SOON",
   expired: "OVERDUE",
-  needs_info: "NEEDS_INFO",
 };
 
 interface ObligationRow {
@@ -57,7 +56,7 @@ interface ObligationRow {
   profiles: { name: string | null } | null;
 }
 
-type KpiFilter = "all" | "valid" | "expired" | "expiring" | "this_month" | "next_month" | "needs_info" | "week" | null;
+type KpiFilter = "all" | "valid" | "expired" | "expiring" | "this_month" | "next_month" | "week" | null;
 
 export default function Dashboard() {
   const [obligations, setObligations] = useState<ObligationRow[]>([]);
@@ -109,17 +108,16 @@ export default function Dashboard() {
   }, [obligations, onlyMine, user]);
 
   const counts = useMemo(() => {
-    let expired = 0, expiring = 0, valid = 0, thisM = 0, nextM = 0, needsInfo = 0;
+    let expired = 0, expiring = 0, valid = 0, thisM = 0, nextM = 0;
     baseList.forEach(o => {
       const g = computeTermGroup(o.next_due_date, rangeDays);
       if (g === "expired") expired++;
       else if (g === "expiring") expiring++;
       else if (g === "valid") valid++;
-      if (g === "needs_info") needsInfo++;
       if (isInMonth(o.next_due_date, thisYear, thisMonth)) thisM++;
       if (isInMonth(o.next_due_date, nextMonthYear, nextMonthMonth)) nextM++;
     });
-    return { total: baseList.length, valid, expired, expiring, thisMonth: thisM, nextMonth: nextM, needsInfo };
+    return { total: baseList.length, valid, expired, expiring, thisMonth: thisM, nextMonth: nextM };
   }, [baseList, rangeDays, thisYear, thisMonth, nextMonthYear, nextMonthMonth]);
 
   // Week strip data (8 weeks)
@@ -174,8 +172,6 @@ export default function Dashboard() {
       list = list.filter(o => isInMonth(o.next_due_date, thisYear, thisMonth));
     } else if (kpiFilter === "next_month") {
       list = list.filter(o => isInMonth(o.next_due_date, nextMonthYear, nextMonthMonth));
-    } else if (kpiFilter === "needs_info") {
-      list = list.filter(o => computeTermGroup(o.next_due_date, rangeDays) === "needs_info");
     } else if (kpiFilter === "week" && selectedWeek !== null) {
       const w = weekStrip[selectedWeek];
       if (w) {
@@ -187,7 +183,7 @@ export default function Dashboard() {
       }
     }
 
-    const groupOrder: Record<TermGroup, number> = { expired: 0, expiring: 1, needs_info: 2, valid: 3 };
+    const groupOrder: Record<TermGroup, number> = { expired: 0, expiring: 1, valid: 2 };
     const sorted = [...list].sort((a, b) => {
       const ga = computeTermGroup(a.next_due_date, rangeDays);
       const gb = computeTermGroup(b.next_due_date, rangeDays);
@@ -238,7 +234,6 @@ export default function Dashboard() {
     { key: "expiring", label: `Do ${rangeDays} dnů`, count: counts.expiring, icon: Clock, borderColor: "border-yellow-500/50", iconBg: "bg-yellow-500/10", iconColor: "text-yellow-500" },
     { key: "this_month", label: "Tento měsíc", count: counts.thisMonth, icon: CalendarDays, borderColor: "border-blue-500/50", iconBg: "bg-blue-500/10", iconColor: "text-blue-500" },
     { key: "next_month", label: "Příští měsíc", count: counts.nextMonth, icon: CalendarPlus, borderColor: "border-sky-400/50", iconBg: "bg-sky-400/10", iconColor: "text-sky-400" },
-    { key: "needs_info", label: "Chybí datum", count: counts.needsInfo, icon: HelpCircle, borderColor: "border-border", iconBg: "bg-muted", iconColor: "text-muted-foreground" },
   ];
 
   const statusPills: { key: KpiFilter; label: string; count: number; bg: string; text: string }[] = [
@@ -246,7 +241,6 @@ export default function Dashboard() {
     { key: "valid", label: "Platné", count: counts.valid, bg: "bg-green-500/15 dark:bg-green-500/20", text: "text-green-700 dark:text-green-400" },
     { key: "expiring", label: "Brzy vyprší", count: counts.expiring, bg: "bg-yellow-500/15 dark:bg-yellow-500/20", text: "text-yellow-700 dark:text-yellow-400" },
     { key: "expired", label: "Expirované", count: counts.expired, bg: "bg-red-500/15 dark:bg-red-500/20", text: "text-red-700 dark:text-red-400" },
-    { key: "needs_info", label: "Chybí datum", count: counts.needsInfo, bg: "bg-muted", text: "text-muted-foreground" },
   ];
 
   const ObligationCardRow = ({ ob }: { ob: ObligationRow }) => {
@@ -362,7 +356,7 @@ export default function Dashboard() {
       </div>
 
       {/* ===== KPI CARDS ===== */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {kpiCards.map(kpi => {
           const isActive = kpiFilter === kpi.key;
           return (
