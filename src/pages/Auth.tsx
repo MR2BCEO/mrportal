@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
+import logo from "@/assets/logo-muj-revizak.png";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -45,10 +46,8 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Shield className="w-6 h-6 text-primary" />
-          </div>
-          <CardTitle className="text-2xl font-bold">Hlídání revizí</CardTitle>
+          <img src={logo} alt="Můj Revizák" className="mx-auto w-16 h-16" />
+          <CardTitle className="text-2xl font-bold">Můj Revizák</CardTitle>
           <CardDescription>
             {isSignUp ? "Vytvořte si účet" : "Přihlaste se do systému"}
           </CardDescription>
