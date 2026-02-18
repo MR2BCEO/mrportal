@@ -316,9 +316,6 @@ export default function Dashboard() {
             <p className="text-muted-foreground text-sm mt-0.5">Monitoring termínů revizí a povinností</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant={onlyMine ? "default" : "outline"} size="sm" onClick={() => setOnlyMine(!onlyMine)}>
-              <User className="w-3.5 h-3.5 mr-1.5" />Moje
-            </Button>
             <Button variant="outline" size="sm" onClick={() => navigate("/obligations")}>
               <Eye className="w-3.5 h-3.5 mr-1.5" />Všechny revize
             </Button>
