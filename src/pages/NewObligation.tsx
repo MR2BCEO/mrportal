@@ -58,6 +58,8 @@ export default function NewObligation() {
   const [newLocName, setNewLocName] = useState("");
   const [newLocAddress, setNewLocAddress] = useState("");
   const [newLocCity, setNewLocCity] = useState("");
+  const [newLocNameError, setNewLocNameError] = useState<string | null>(null);
+  const [newLocCityError, setNewLocCityError] = useState<string | null>(null);
 
   // Step 2 - Service catalog
   const [services, setServices] = useState<ServiceItem[]>([]);
@@ -81,7 +83,7 @@ export default function NewObligation() {
 
   useEffect(() => {
     if (customerId) {
-      supabase.from("locations").select("id, name").eq("customer_id", customerId).order("name").then(({ data }) => setLocations(data || []));
+      supabase.from("locations").select("id, name, city, address_line").eq("customer_id", customerId).order("name").then(({ data }) => setLocations(data || []));
     } else {
       setLocations([]);
       setLocationId("");
@@ -142,13 +144,22 @@ export default function NewObligation() {
   };
 
   const createLocation = async () => {
-    if (!newLocName.trim() || !customerId) return;
-    const { data } = await supabase.from("locations").insert({
+    const nameErr = newLocName.trim().length < 3 ? "Název musí mít alespoň 3 znaky" : null;
+    const cityErr = newLocCity.trim().length < 2 ? "Město musí mít alespoň 2 znaky" : null;
+    setNewLocNameError(nameErr);
+    setNewLocCityError(cityErr);
+    if (nameErr || cityErr || !customerId) return;
+
+    const { data, error } = await supabase.from("locations").insert({
       name: newLocName.trim(),
       customer_id: customerId,
       address_line: newLocAddress || null,
-      city: newLocCity || null,
-    }).select("id, name").single();
+      city: newLocCity.trim(),
+    }).select("id, name, city, address_line").single();
+    if (error) {
+      toast({ title: "Chyba", description: error.code === "23505" ? "Lokace s tímto názvem a městem již existuje" : "Nepodařilo se vytvořit lokaci", variant: "destructive" });
+      return;
+    }
     if (data) {
       setLocations(prev => [...prev, data]);
       setLocationId(data.id);
@@ -156,6 +167,8 @@ export default function NewObligation() {
       setNewLocName("");
       setNewLocAddress("");
       setNewLocCity("");
+      setNewLocNameError(null);
+      setNewLocCityError(null);
     }
   };
 
@@ -357,18 +370,43 @@ export default function NewObligation() {
                 <Select value={locationId} onValueChange={setLocationId} disabled={!customerId}>
                   <SelectTrigger className="flex-1"><SelectValue placeholder={customerId ? "Vyberte lokaci" : "Nejdříve vyberte odběratele"} /></SelectTrigger>
                   <SelectContent>
-                    {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                    {locations.map(l => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}{l.city ? `, ${l.city}` : ""}{l.address_line ? ` (${l.address_line})` : ""}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <Dialog open={newLocOpen} onOpenChange={setNewLocOpen}>
+                <Dialog open={newLocOpen} onOpenChange={(open) => { setNewLocOpen(open); if (!open) { setNewLocNameError(null); setNewLocCityError(null); } }}>
                   <DialogTrigger asChild><Button variant="outline" size="icon" disabled={!customerId}><Plus className="w-4 h-4" /></Button></DialogTrigger>
                   <DialogContent>
                     <DialogHeader><DialogTitle>Nová lokace</DialogTitle></DialogHeader>
                     <div className="space-y-3">
-                      <Input placeholder="Název" value={newLocName} onChange={e => setNewLocName(e.target.value)} />
-                      <Input placeholder="Adresa" value={newLocAddress} onChange={e => setNewLocAddress(e.target.value)} />
-                      <Input placeholder="Město" value={newLocCity} onChange={e => setNewLocCity(e.target.value)} />
-                      <Button onClick={createLocation} className="w-full">Vytvořit</Button>
+                      <div className="space-y-1.5">
+                        <Label>Název lokace *</Label>
+                        <Input
+                          placeholder="např. Provozovna Frýdek"
+                          value={newLocName}
+                          onChange={e => { setNewLocName(e.target.value); setNewLocNameError(e.target.value.trim().length < 3 ? "Min. 3 znaky" : null); }}
+                          className={newLocNameError ? "border-destructive" : ""}
+                        />
+                        {newLocNameError && <p className="text-xs text-destructive">{newLocNameError}</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Město *</Label>
+                        <Input
+                          placeholder="Frýdek-Místek"
+                          value={newLocCity}
+                          onChange={e => { setNewLocCity(e.target.value); setNewLocCityError(e.target.value.trim().length < 2 ? "Min. 2 znaky" : null); }}
+                          className={newLocCityError ? "border-destructive" : ""}
+                        />
+                        {newLocCityError && <p className="text-xs text-destructive">{newLocCityError}</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Ulice</Label>
+                        <Input placeholder="Hlavní 123" value={newLocAddress} onChange={e => setNewLocAddress(e.target.value)} />
+                      </div>
+                      <Button onClick={createLocation} className="w-full" disabled={!!newLocNameError || !!newLocCityError}>Vytvořit lokaci</Button>
                     </div>
                   </DialogContent>
                 </Dialog>
