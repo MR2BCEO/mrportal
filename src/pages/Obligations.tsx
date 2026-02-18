@@ -196,7 +196,7 @@ export default function Obligations() {
     <div className="space-y-5 animate-fade-in">
       {/* A) Fixed heading */}
       <div>
-        <h1 className="text-2xl font-semibold">Revize</h1>
+        <h1 className="text-2xl font-bold">Revize</h1>
         <p className="text-sm text-muted-foreground">Přehled a hlídání termínů revizní agendy</p>
       </div>
 
@@ -358,7 +358,7 @@ export default function Obligations() {
                   <TableCell className="text-sm">
                     {(ob.locations as any)?.name || "—"}
                   </TableCell>
-                  <TableCell className="text-sm font-medium text-primary hover:underline">
+                  <TableCell className="text-sm font-medium">
                     {sc ? `${sc.code} – ${sc.name}` : ob.title}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">

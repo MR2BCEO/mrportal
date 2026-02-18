@@ -13,7 +13,7 @@ const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/customers", icon: Building2, label: "Odběratelé" },
   { to: "/locations", icon: MapPin, label: "Lokace" },
-  { to: "/obligations", icon: ClipboardCheck, label: "Povinnosti" },
+  { to: "/obligations", icon: ClipboardCheck, label: "Revize" },
   { to: "/settings", icon: Settings, label: "Nastavení", adminOnly: true },
 ];
 
