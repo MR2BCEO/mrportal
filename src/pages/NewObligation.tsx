@@ -83,10 +83,14 @@ export default function NewObligation() {
   const [technicianName, setTechnicianName] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
+  const [obligationTypes, setObligationTypes] = useState<{id: string; code: string; domain: string}[]>([]);
+
   useEffect(() => {
     supabase.from("customers").select("id, name, ico").order("name").then(({ data }) => setCustomers((data || []) as CustomerItem[]));
     supabase.from("service_catalog").select("*").eq("is_active", true).order("division").order("group_name").order("code")
       .then(({ data }) => setServices((data as any as ServiceItem[]) || []));
+    supabase.from("obligation_types").select("id, code, domain").eq("is_active", true)
+      .then(({ data }) => setObligationTypes(data || []));
   }, []);
 
   useEffect(() => {
@@ -244,12 +248,20 @@ export default function NewObligation() {
         return;
       }
 
+      const domainValue = getDomain(division);
+      const matchingType = obligationTypes.find(t => t.domain === domainValue) || obligationTypes[0];
+      if (!matchingType) {
+        toast({ title: "Chyba", description: "Nepodařilo se najít typ povinnosti", variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+
       const { data: ob, error } = await supabase.from("obligations").insert({
         customer_id: customerId,
         location_id: locationId,
         asset_id: assetId || null,
-        domain: getDomain(division) as any,
-        obligation_type_id: serviceId,
+        domain: domainValue as any,
+        obligation_type_id: matchingType.id,
         service_id: serviceId,
         title: autoTitle,
         performed_date: performedDate || null,
