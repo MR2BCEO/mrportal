@@ -298,8 +298,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Quick actions - fixed width to prevent layout shift */}
-        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 w-16" onClick={e => e.stopPropagation()}>
+        {/* Quick actions - minimal width, flush right */}
+        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 w-8" onClick={e => e.stopPropagation()}>
           {!isDone && (
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-500/10" title="Hotovo" onClick={(e) => handleQuickAction(ob.id, "DONE", e)}>
               <CheckCircle2 className="w-3.5 h-3.5" />
