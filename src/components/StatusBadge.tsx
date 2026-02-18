@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
 
 const statusConfig: Record<string, { label: string; class: string }> = {
+  PLANNED: { label: "Plánováno", class: "status-badge-planned" },
+  IN_PROGRESS: { label: "Probíhá", class: "status-badge-in-progress" },
   DRAFT: { label: "Koncept", class: "status-badge-draft" },
   ACTIVE: { label: "Aktivní", class: "status-badge-active" },
   DUE_SOON: { label: "Brzy", class: "status-badge-due-soon" },
@@ -19,17 +21,25 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
-const domainConfig: Record<string, { label: string; class: string }> = {
-  REVIZE: { label: "Revize", class: "domain-badge-revize" },
-  BOZP: { label: "BOZP", class: "domain-badge-bozp" },
-  PO: { label: "PO", class: "domain-badge-po" },
+const divisionConfig: Record<string, { label: string; class: string }> = {
+  "Revize a inspekce": { label: "Revize", class: "division-badge-revize" },
+  "BOZP a požární ochrana": { label: "BOZP/PO", class: "division-badge-bozp" },
+  "Školení a certifikace": { label: "Školení", class: "division-badge-skoleni" },
+  "Technická správa budov": { label: "TSB", class: "division-badge-tsb" },
+  // Legacy support
+  "REVIZE": { label: "Revize", class: "division-badge-revize" },
+  "BOZP": { label: "BOZP", class: "division-badge-bozp" },
+  "PO": { label: "PO", class: "division-badge-po" },
 };
 
-export function DomainBadge({ domain }: { domain: string }) {
-  const config = domainConfig[domain] || { label: domain, class: "domain-badge-revize" };
+export function DivisionBadge({ division }: { division: string }) {
+  const config = divisionConfig[division] || { label: division, class: "division-badge-revize" };
   return (
     <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold", config.class)}>
       {config.label}
     </span>
   );
 }
+
+// Keep backward compat
+export const DomainBadge = DivisionBadge;

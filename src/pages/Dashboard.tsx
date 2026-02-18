@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { StatusBadge, DomainBadge } from "@/components/StatusBadge";
-import { AlertTriangle, Clock, HelpCircle, Plus, FileWarning } from "lucide-react";
+import { StatusBadge, DivisionBadge } from "@/components/StatusBadge";
+import { AlertTriangle, Clock, HelpCircle, Plus } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { cs } from "date-fns/locale";
@@ -11,13 +11,12 @@ import { cs } from "date-fns/locale";
 interface ObligationRow {
   id: string;
   title: string;
-  domain: string;
   status: string;
   next_due_date: string | null;
   performed_date: string | null;
   customers: { name: string } | null;
   locations: { name: string } | null;
-  obligation_types: { code: string; name: string } | null;
+  service_catalog: { code: string; name: string; division: string } | null;
 }
 
 export default function Dashboard() {
@@ -33,8 +32,8 @@ export default function Dashboard() {
   const fetchObligations = async () => {
     const { data, error } = await supabase
       .from("obligations")
-      .select("id, title, domain, status, next_due_date, performed_date, customers(name), locations(name), obligation_types(code, name)")
-      .neq("status", "ARCHIVED")
+      .select("id, title, status, next_due_date, performed_date, customers(name), locations(name), service_catalog(code, name, division)")
+      .not("status", "in", '("ARCHIVED","DONE")')
       .order("next_due_date", { ascending: true, nullsFirst: false });
     if (!error && data) setObligations(data as unknown as ObligationRow[]);
     setLoading(false);
@@ -44,7 +43,6 @@ export default function Dashboard() {
     OVERDUE: obligations.filter(o => o.status === "OVERDUE").length,
     DUE_SOON: obligations.filter(o => o.status === "DUE_SOON").length,
     NEEDS_INFO: obligations.filter(o => o.status === "NEEDS_INFO").length,
-    NO_DOC: 0, // Would need doc join, simplified for MVP
   };
 
   const filtered = statusFilter
@@ -52,9 +50,9 @@ export default function Dashboard() {
     : obligations;
 
   const kpiCards = [
-    { key: "OVERDUE", label: "Po termínu", count: counts.OVERDUE, icon: AlertTriangle, color: "text-status-overdue" },
-    { key: "DUE_SOON", label: "Brzy vyprší", count: counts.DUE_SOON, icon: Clock, color: "text-status-due-soon" },
-    { key: "NEEDS_INFO", label: "Chybí údaje", count: counts.NEEDS_INFO, icon: HelpCircle, color: "text-status-needs-info" },
+    { key: "OVERDUE", label: "Po termínu", count: counts.OVERDUE, icon: AlertTriangle, color: "text-[hsl(var(--status-overdue))]" },
+    { key: "DUE_SOON", label: "Brzy vyprší", count: counts.DUE_SOON, icon: Clock, color: "text-[hsl(var(--status-due-soon))]" },
+    { key: "NEEDS_INFO", label: "Chybí údaje", count: counts.NEEDS_INFO, icon: HelpCircle, color: "text-[hsl(var(--status-needs-info))]" },
   ];
 
   return (
@@ -116,10 +114,10 @@ export default function Dashboard() {
                 <thead>
                   <tr className="border-b bg-muted/50">
                     <th className="text-left p-3 font-medium text-muted-foreground">Název</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Doména</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Služba</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Odběratel</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Lokace</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Příští termín</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Expirace</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
                   </tr>
                 </thead>
@@ -131,7 +129,11 @@ export default function Dashboard() {
                       onClick={() => navigate(`/obligations/${ob.id}`)}
                     >
                       <td className="p-3 font-medium">{ob.title}</td>
-                      <td className="p-3"><DomainBadge domain={ob.domain} /></td>
+                      <td className="p-3">
+                        {ob.service_catalog ? (
+                          <DivisionBadge division={ob.service_catalog.division} />
+                        ) : "—"}
+                      </td>
                       <td className="p-3 text-muted-foreground">{ob.customers?.name || "—"}</td>
                       <td className="p-3 text-muted-foreground">{ob.locations?.name || "—"}</td>
                       <td className="p-3 text-muted-foreground">

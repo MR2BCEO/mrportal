@@ -40,15 +40,19 @@
     --status-overdue: 0 72% 51%;
     --status-due-soon: 38 92% 50%;
     --status-active: 142 71% 45%;
+    --status-planned: 220 60% 55%;
+    --status-in-progress: 200 80% 50%;
     --status-needs-info: 262 60% 55%;
     --status-draft: 220 10% 55%;
     --status-done: 142 71% 45%;
     --status-archived: 220 10% 40%;
 
-    /* Domain colors */
-    --domain-revize: 220 70% 50%;
-    --domain-bozp: 38 92% 50%;
-    --domain-po: 0 72% 51%;
+    /* Division colors */
+    --division-revize: 220 70% 50%;
+    --division-bozp: 38 92% 50%;
+    --division-po: 0 72% 51%;
+    --division-skoleni: 262 60% 55%;
+    --division-tsb: 160 60% 45%;
 
     --sidebar-background: 220 25% 12%;
     --sidebar-foreground: 220 15% 85%;
@@ -120,6 +124,12 @@
   .status-badge-active {
     @apply bg-[hsl(var(--status-active)/0.12)] text-[hsl(var(--status-active))] border border-[hsl(var(--status-active)/0.2)];
   }
+  .status-badge-planned {
+    @apply bg-[hsl(var(--status-planned)/0.12)] text-[hsl(var(--status-planned))] border border-[hsl(var(--status-planned)/0.2)];
+  }
+  .status-badge-in-progress {
+    @apply bg-[hsl(var(--status-in-progress)/0.12)] text-[hsl(var(--status-in-progress))] border border-[hsl(var(--status-in-progress)/0.2)];
+  }
   .status-badge-needs-info {
     @apply bg-[hsl(var(--status-needs-info)/0.12)] text-[hsl(var(--status-needs-info))] border border-[hsl(var(--status-needs-info)/0.2)];
   }
@@ -133,13 +143,19 @@
     @apply bg-[hsl(var(--status-archived)/0.12)] text-[hsl(var(--status-archived))] border border-[hsl(var(--status-archived)/0.2)];
   }
 
-  .domain-badge-revize {
-    @apply bg-[hsl(var(--domain-revize)/0.12)] text-[hsl(var(--domain-revize))];
+  .division-badge-revize {
+    @apply bg-[hsl(var(--division-revize)/0.12)] text-[hsl(var(--division-revize))];
   }
-  .domain-badge-bozp {
-    @apply bg-[hsl(var(--domain-bozp)/0.12)] text-[hsl(var(--domain-bozp))];
+  .division-badge-bozp {
+    @apply bg-[hsl(var(--division-bozp)/0.12)] text-[hsl(var(--division-bozp))];
   }
-  .domain-badge-po {
-    @apply bg-[hsl(var(--domain-po)/0.12)] text-[hsl(var(--domain-po))];
+  .division-badge-po {
+    @apply bg-[hsl(var(--division-po)/0.12)] text-[hsl(var(--division-po))];
+  }
+  .division-badge-skoleni {
+    @apply bg-[hsl(var(--division-skoleni)/0.12)] text-[hsl(var(--division-skoleni))];
+  }
+  .division-badge-tsb {
+    @apply bg-[hsl(var(--division-tsb)/0.12)] text-[hsl(var(--division-tsb))];
   }
 }

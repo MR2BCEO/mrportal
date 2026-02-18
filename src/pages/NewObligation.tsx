@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,7 +13,15 @@ import { ArrowLeft, ArrowRight, Check, Plus, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-const steps = ["Odběratel & Lokace", "Typ povinnosti", "Termíny & Dokument"];
+const steps = ["Odběratel & Lokace", "Služba", "Termíny & Dokument"];
+
+interface ServiceItem {
+  id: string;
+  division: string;
+  group_name: string;
+  code: string;
+  name: string;
+}
 
 export default function NewObligation() {
   const navigate = useNavigate();
@@ -38,22 +46,24 @@ export default function NewObligation() {
   const [newLocAddress, setNewLocAddress] = useState("");
   const [newLocCity, setNewLocCity] = useState("");
 
-  // Step 2
-  const [obligationTypes, setObligationTypes] = useState<any[]>([]);
-  const [domain, setDomain] = useState<string>("");
-  const [typeId, setTypeId] = useState("");
+  // Step 2 - Service catalog
+  const [services, setServices] = useState<ServiceItem[]>([]);
+  const [division, setDivision] = useState("");
+  const [groupName, setGroupName] = useState("");
+  const [serviceId, setServiceId] = useState("");
 
   // Step 3
   const [performedDate, setPerformedDate] = useState("");
-  const [periodicityMonths, setPeriodicityMonths] = useState<string>("");
   const [nextDueDate, setNextDueDate] = useState("");
-  const [findingsSummary, setFindingsSummary] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [note, setNote] = useState("");
   const [technicianName, setTechnicianName] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
   useEffect(() => {
     supabase.from("customers").select("id, name").order("name").then(({ data }) => setCustomers(data || []));
-    supabase.from("obligation_types").select("*").eq("is_active", true).order("domain").then(({ data }) => setObligationTypes(data || []));
+    supabase.from("service_catalog").select("*").eq("is_active", true).order("division").order("group_name").order("code")
+      .then(({ data }) => setServices((data as any as ServiceItem[]) || []));
   }, []);
 
   useEffect(() => {
@@ -74,21 +84,13 @@ export default function NewObligation() {
     }
   }, [locationId]);
 
-  useEffect(() => {
-    if (typeId) {
-      const t = obligationTypes.find(ot => ot.id === typeId);
-      if (t) {
-        setDomain(t.domain);
-        if (t.default_periodicity_months && !periodicityMonths) {
-          setPeriodicityMonths(String(t.default_periodicity_months));
-        }
-      }
-    }
-  }, [typeId]);
+  const divisions = useMemo(() => [...new Set(services.map(s => s.division))], [services]);
+  const groups = useMemo(() => [...new Set(services.filter(s => s.division === division).map(s => s.group_name))], [services, division]);
+  const filteredServices = useMemo(() => services.filter(s => s.division === division && s.group_name === groupName), [services, division, groupName]);
 
   const createCustomer = async () => {
     if (!newCustName.trim()) return;
-    const { data, error } = await supabase.from("customers").insert({ name: newCustName.trim() }).select("id, name").single();
+    const { data } = await supabase.from("customers").insert({ name: newCustName.trim() }).select("id, name").single();
     if (data) {
       setCustomers(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
       setCustomerId(data.id);
@@ -115,39 +117,69 @@ export default function NewObligation() {
     }
   };
 
-  const filteredTypes = domain
-    ? obligationTypes.filter(t => t.domain === domain)
-    : obligationTypes;
-
   const canNext = () => {
     if (step === 0) return customerId && locationId;
-    if (step === 1) return typeId && domain;
+    if (step === 1) return serviceId;
+    if (step === 2) return nextDueDate;
     return true;
   };
 
-  const selectedType = obligationTypes.find(t => t.id === typeId);
-  const autoTitle = selectedType
-    ? `${selectedType.name}${locations.find(l => l.id === locationId)?.name ? ` – ${locations.find(l => l.id === locationId)?.name}` : ""}`
+  const selectedService = services.find(s => s.id === serviceId);
+  const autoTitle = selectedService
+    ? `${selectedService.name}${locations.find(l => l.id === locationId)?.name ? ` – ${locations.find(l => l.id === locationId)?.name}` : ""}`
     : "";
+
+  // Map division to legacy domain for backward compat
+  const getDomain = (div: string) => {
+    if (div.includes("BOZP") || div.includes("požární")) return "BOZP";
+    if (div.includes("Školení")) return "BOZP";
+    return "REVIZE";
+  };
 
   const handleSubmit = async () => {
     setSaving(true);
     try {
+      // Check dedupe
+      const dedupeQuery = supabase.from("obligations")
+        .select("id, title, status")
+        .eq("service_id", serviceId)
+        .eq("location_id", locationId)
+        .eq("next_due_date", nextDueDate)
+        .not("status", "in", '("ARCHIVED","DONE")');
+      
+      if (assetId) {
+        dedupeQuery.eq("asset_id", assetId);
+      } else {
+        dedupeQuery.is("asset_id", null);
+      }
+
+      const { data: existing } = await dedupeQuery;
+      if (existing && existing.length > 0) {
+        const goToExisting = confirm(`Povinnost se stejným klíčem již existuje: "${existing[0].title}". Chcete otevřít existující záznam?`);
+        if (goToExisting) {
+          navigate(`/obligations/${existing[0].id}`);
+          return;
+        }
+        setSaving(false);
+        return;
+      }
+
       const { data: ob, error } = await supabase.from("obligations").insert({
         customer_id: customerId,
         location_id: locationId,
         asset_id: assetId || null,
-        domain: domain as any,
-        obligation_type_id: typeId,
+        domain: getDomain(division) as any,
+        obligation_type_id: serviceId, // legacy FK
+        service_id: serviceId,
         title: autoTitle,
         performed_date: performedDate || null,
-        periodicity_months: periodicityMonths ? parseInt(periodicityMonths) : null,
-        next_due_date: nextDueDate || null,
+        next_due_date: nextDueDate,
         responsible_user_id: user?.id,
         technician_name: technicianName || null,
-        findings_summary: findingsSummary || null,
-        status: "DRAFT",
-      }).select("id").single();
+        quantity: quantity ? parseInt(quantity) : null,
+        findings_summary: note || null,
+        status: "PLANNED",
+      } as any).select("id").single();
 
       if (error) throw error;
 
@@ -267,36 +299,48 @@ export default function NewObligation() {
         </Card>
       )}
 
-      {/* Step 2: Domain & Type */}
+      {/* Step 2: Service */}
       {step === 1 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Typ povinnosti</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Služba (typ povinnosti)</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Doména *</Label>
-              <Select value={domain} onValueChange={(v) => { setDomain(v); setTypeId(""); }}>
-                <SelectTrigger><SelectValue placeholder="Vyberte doménu" /></SelectTrigger>
+              <Label>Divize *</Label>
+              <Select value={division} onValueChange={(v) => { setDivision(v); setGroupName(""); setServiceId(""); }}>
+                <SelectTrigger><SelectValue placeholder="Vyberte divizi" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="REVIZE">Revize</SelectItem>
-                  <SelectItem value="BOZP">BOZP</SelectItem>
-                  <SelectItem value="PO">PO</SelectItem>
+                  {divisions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Typ *</Label>
-              <Select value={typeId} onValueChange={setTypeId} disabled={!domain}>
-                <SelectTrigger><SelectValue placeholder="Vyberte typ" /></SelectTrigger>
-                <SelectContent>
-                  {filteredTypes.map(t => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.code} – {t.name} {t.default_periodicity_months ? `(${t.default_periodicity_months} měs.)` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {division && (
+              <div className="space-y-2">
+                <Label>Skupina *</Label>
+                <Select value={groupName} onValueChange={(v) => { setGroupName(v); setServiceId(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Vyberte skupinu" /></SelectTrigger>
+                  <SelectContent>
+                    {groups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {groupName && (
+              <div className="space-y-2">
+                <Label>Služba *</Label>
+                <Select value={serviceId} onValueChange={setServiceId}>
+                  <SelectTrigger><SelectValue placeholder="Vyberte službu" /></SelectTrigger>
+                  <SelectContent>
+                    {filteredServices.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.code} – {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -316,13 +360,13 @@ export default function NewObligation() {
                 <Input type="date" value={performedDate} onChange={e => setPerformedDate(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>Periodicita (měsíce)</Label>
-                <Input type="number" value={periodicityMonths} onChange={e => setPeriodicityMonths(e.target.value)} placeholder="12" />
+                <Label>Expirace / příští termín *</Label>
+                <Input type="date" value={nextDueDate} onChange={e => setNextDueDate(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Přesné datum dle revizní zprávy – povinné pole</p>
               </div>
               <div className="space-y-2">
-                <Label>Příští termín (nepovinné)</Label>
-                <Input type="date" value={nextDueDate} onChange={e => setNextDueDate(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Pokud nevyplníte, dopočítá se z data provedení + periodicita</p>
+                <Label>Počet kusů</Label>
+                <Input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="např. 45" min={1} />
               </div>
               <div className="space-y-2">
                 <Label>Technik</Label>
@@ -330,8 +374,8 @@ export default function NewObligation() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Shrnutí závad / doporučení</Label>
-              <Textarea value={findingsSummary} onChange={e => setFindingsSummary(e.target.value)} placeholder="Stručný popis..." />
+              <Label>Poznámka</Label>
+              <Textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Stručný popis, poznámka ke zkrácené lhůtě atp." />
             </div>
             <div className="space-y-2">
               <Label>Revizní zpráva (PDF/JPG/PNG)</Label>
@@ -351,7 +395,7 @@ export default function NewObligation() {
 
       {/* Navigation */}
       <div className="flex justify-between">
-        <Button variant="outline" onClick={() => step > 0 ? setStep(step - 1) : navigate("/obligations")} >
+        <Button variant="outline" onClick={() => step > 0 ? setStep(step - 1) : navigate("/obligations")}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           {step === 0 ? "Zpět" : "Předchozí"}
         </Button>
