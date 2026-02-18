@@ -266,7 +266,7 @@ export default function Dashboard() {
     const isInProgress = ob.status === "IN_PROGRESS";
     return (
       <div
-        className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors group"
+        className="flex items-center gap-3 pl-3 pr-1.5 py-2.5 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors group"
         onClick={() => navigate(`/obligations/${ob.id}`)}
       >
         {/* Left color indicator */}
