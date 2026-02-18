@@ -58,7 +58,7 @@ interface ObligationRow {
   profiles: { name: string | null } | null;
 }
 
-type KpiFilter = "expired" | "expiring" | "this_month" | "next_month" | "needs_info" | null;
+type KpiFilter = "all" | "valid" | "expired" | "expiring" | "this_month" | "next_month" | "needs_info" | null;
 
 export default function Dashboard() {
   const [obligations, setObligations] = useState<ObligationRow[]>([]);
@@ -109,22 +109,27 @@ export default function Dashboard() {
   }, [obligations, onlyMine, user]);
 
   const counts = useMemo(() => {
-    let expired = 0, expiring = 0, thisM = 0, nextM = 0, needsInfo = 0;
+    let expired = 0, expiring = 0, valid = 0, thisM = 0, nextM = 0, needsInfo = 0;
     baseList.forEach(o => {
       const g = computeTermGroup(o.next_due_date, rangeDays);
       if (g === "expired") expired++;
       else if (g === "expiring") expiring++;
+      else if (g === "valid") valid++;
       if (g === "needs_info") needsInfo++;
       if (isInMonth(o.next_due_date, thisYear, thisMonth)) thisM++;
       if (isInMonth(o.next_due_date, nextMonthYear, nextMonthMonth)) nextM++;
     });
-    return { expired, expiring, thisMonth: thisM, nextMonth: nextM, needsInfo };
+    return { total: baseList.length, valid, expired, expiring, thisMonth: thisM, nextMonth: nextM, needsInfo };
   }, [baseList, rangeDays, thisYear, thisMonth, nextMonthYear, nextMonthMonth]);
 
   const tableData = useMemo(() => {
     let list = baseList;
 
-    if (kpiFilter === "expired") {
+    if (kpiFilter === "all") {
+      // show all, no filter
+    } else if (kpiFilter === "valid") {
+      list = list.filter(o => computeTermGroup(o.next_due_date, rangeDays) === "valid");
+    } else if (kpiFilter === "expired") {
       list = list.filter(o => computeTermGroup(o.next_due_date, rangeDays) === "expired");
     } else if (kpiFilter === "expiring") {
       list = list.filter(o => computeTermGroup(o.next_due_date, rangeDays) === "expiring");
@@ -181,12 +186,12 @@ export default function Dashboard() {
     fetchObligations();
   };
 
-  const kpiCards: { key: KpiFilter; label: string; count: number; icon: typeof AlertTriangle; color: string; bgColor: string; pillBg: string; pillText: string }[] = [
-    { key: "expired", label: "Expirované", count: counts.expired, icon: AlertTriangle, color: "text-red-600", bgColor: "bg-red-100 dark:bg-red-900/30", pillBg: "bg-red-100 dark:bg-red-900/40 border-red-200 dark:border-red-800", pillText: "text-red-700 dark:text-red-300" },
-    { key: "expiring", label: "Brzy vyprší", count: counts.expiring, icon: Clock, color: "text-yellow-600", bgColor: "bg-yellow-100 dark:bg-yellow-900/30", pillBg: "bg-yellow-100 dark:bg-yellow-900/40 border-yellow-200 dark:border-yellow-800", pillText: "text-yellow-700 dark:text-yellow-300" },
-    { key: "this_month", label: "Tento měsíc", count: counts.thisMonth, icon: CalendarDays, color: "text-blue-600", bgColor: "bg-blue-100 dark:bg-blue-900/30", pillBg: "bg-blue-100 dark:bg-blue-900/40 border-blue-200 dark:border-blue-800", pillText: "text-blue-700 dark:text-blue-300" },
-    { key: "next_month", label: "Příští měsíc", count: counts.nextMonth, icon: CalendarPlus, color: "text-sky-500", bgColor: "bg-sky-100 dark:bg-sky-900/30", pillBg: "bg-sky-100 dark:bg-sky-900/40 border-sky-200 dark:border-sky-800", pillText: "text-sky-700 dark:text-sky-300" },
-    { key: "needs_info", label: "Chybí datum", count: counts.needsInfo, icon: HelpCircle, color: "text-muted-foreground", bgColor: "bg-muted", pillBg: "bg-muted border-border", pillText: "text-muted-foreground" },
+  const kpiCards: { key: KpiFilter; label: string; count: number; pillBg: string; pillText: string; countBg: string }[] = [
+    { key: "all", label: "Celkem", count: counts.total, pillBg: "bg-foreground border-foreground", pillText: "text-background", countBg: "bg-background/20 text-background" },
+    { key: "valid", label: "Platné", count: counts.valid, pillBg: "bg-green-100 dark:bg-green-900/40 border-green-200 dark:border-green-800", pillText: "text-green-700 dark:text-green-300", countBg: "bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200" },
+    { key: "expiring", label: "Brzy vyprší", count: counts.expiring, pillBg: "bg-yellow-100 dark:bg-yellow-900/40 border-yellow-200 dark:border-yellow-800", pillText: "text-yellow-700 dark:text-yellow-300", countBg: "bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200" },
+    { key: "expired", label: "Expirované", count: counts.expired, pillBg: "bg-red-100 dark:bg-red-900/40 border-red-200 dark:border-red-800", pillText: "text-red-700 dark:text-red-300", countBg: "bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200" },
+    { key: "needs_info", label: "Chybí datum", count: counts.needsInfo, pillBg: "bg-muted border-border", pillText: "text-muted-foreground", countBg: "bg-muted-foreground/20 text-muted-foreground" },
   ];
 
   return (
@@ -214,7 +219,7 @@ export default function Dashboard() {
               onClick={() => setKpiFilter(isActive ? null : kpi.key)}
             >
               {kpi.label}
-              <span className={`inline-flex items-center justify-center min-w-[20px] h-5 rounded-full px-1.5 text-xs font-bold ${isActive ? "bg-primary text-primary-foreground" : kpi.bgColor + " " + kpi.color}`}>
+              <span className={`inline-flex items-center justify-center min-w-[20px] h-5 rounded-full px-1.5 text-xs font-bold ${kpi.countBg}`}>
                 {kpi.count}
               </span>
             </button>
