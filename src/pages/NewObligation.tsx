@@ -112,6 +112,8 @@ export default function NewObligation() {
   const [quantity, setQuantity] = useState("");
   const [note, setNote] = useState("");
   const [technicianName, setTechnicianName] = useState("");
+  const [techCustomMode, setTechCustomMode] = useState(false);
+  const [techniciansList, setTechniciansList] = useState<{ id: string; name: string; company: string | null; phone: string | null; email: string | null }[]>([]);
   const [file, setFile] = useState<File | null>(null);
 
   const [obligationTypes, setObligationTypes] = useState<{id: string; code: string; domain: string}[]>([]);
@@ -122,6 +124,8 @@ export default function NewObligation() {
       .then(({ data }) => setServices((data as any as ServiceItem[]) || []));
     supabase.from("obligation_types").select("id, code, domain").eq("is_active", true)
       .then(({ data }) => setObligationTypes(data || []));
+    supabase.from("technicians").select("id, name, company, phone, email").eq("is_active", true).order("name")
+      .then(({ data }) => setTechniciansList((data as any) || []));
   }, []);
 
   useEffect(() => {
@@ -605,7 +609,32 @@ export default function NewObligation() {
               </div>
               <div className="space-y-2">
                 <Label>Technik</Label>
-                <Input value={technicianName} onChange={e => setTechnicianName(e.target.value)} placeholder="Jméno technika" />
+                <Select value={technicianName} onValueChange={(v) => {
+                  if (v === "__custom__") {
+                    setTechnicianName("");
+                  } else {
+                    setTechnicianName(v);
+                  }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Vyberte technika" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__custom__">✏️ Zadat ručně</SelectItem>
+                    {techniciansList.map(t => (
+                      <SelectItem key={t.id} value={t.name}>
+                        {t.name}{t.company ? ` (${t.company})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {technicianName === "" && (
+                  <Input
+                    value=""
+                    onChange={e => setTechnicianName(e.target.value)}
+                    placeholder="Jméno technika"
+                    className="mt-1.5"
+                    autoFocus
+                  />
+                )}
               </div>
             </div>
             <div className="space-y-2">
