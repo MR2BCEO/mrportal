@@ -5,12 +5,18 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge, DivisionBadge } from "@/components/StatusBadge";
-import { ArrowLeft, FileText, History, Upload, Info, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, FileText, History, Upload, Info, CheckCircle2, Pencil, Trash2, X, Save } from "lucide-react";
 import { format } from "date-fns";
 import { cs } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
 
 export default function ObligationDetail() {
   const { id } = useParams();
@@ -21,6 +27,8 @@ export default function ObligationDetail() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState<any>({});
 
   useEffect(() => {
     if (!id) return;
@@ -40,6 +48,58 @@ export default function ObligationDetail() {
     const { data: hist } = await supabase.from("obligation_history")
       .select("*, profiles(name)").eq("obligation_id", id!).order("created_at", { ascending: false });
     setHistory(hist || []);
+  };
+
+  const startEditing = () => {
+    setEditForm({
+      title: obligation.title || "",
+      performed_date: obligation.performed_date || "",
+      next_due_date: obligation.next_due_date || "",
+      technician_name: obligation.technician_name || "",
+      technician_company: obligation.technician_company || "",
+      technician_phone: obligation.technician_phone || "",
+      technician_email: obligation.technician_email || "",
+      quantity: obligation.quantity ?? "",
+      findings_summary: obligation.findings_summary || "",
+    });
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    if (!id) return;
+    const { error } = await supabase.from("obligations").update({
+      title: editForm.title,
+      performed_date: editForm.performed_date || null,
+      next_due_date: editForm.next_due_date || null,
+      technician_name: editForm.technician_name || null,
+      technician_company: editForm.technician_company || null,
+      technician_phone: editForm.technician_phone || null,
+      technician_email: editForm.technician_email || null,
+      quantity: editForm.quantity ? parseInt(editForm.quantity) : null,
+      findings_summary: editForm.findings_summary || null,
+    } as any).eq("id", id);
+
+    if (error) {
+      toast({ title: "Chyba", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Uloženo" });
+      setEditing(false);
+      fetchData();
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    // Delete related documents and history first
+    await supabase.from("documents").delete().eq("obligation_id", id);
+    await supabase.from("obligation_history").delete().eq("obligation_id", id);
+    const { error } = await supabase.from("obligations").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Chyba mazání", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Povinnost smazána" });
+      navigate("/obligations");
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,47 +179,127 @@ export default function ObligationDetail() {
           </p>
         </div>
         <div className="flex gap-2">
-          {obligation.status !== "DONE" && obligation.status !== "ARCHIVED" && (
+          {!editing && (
+            <Button variant="outline" size="sm" onClick={startEditing}>
+              <Pencil className="w-4 h-4 mr-1" />Upravit
+            </Button>
+          )}
+          {editing && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
+                <X className="w-4 h-4 mr-1" />Zrušit
+              </Button>
+              <Button size="sm" onClick={saveEdit}>
+                <Save className="w-4 h-4 mr-1" />Uložit
+              </Button>
+            </>
+          )}
+          {obligation.status !== "DONE" && obligation.status !== "ARCHIVED" && !editing && (
             <Button variant="outline" size="sm" onClick={markDone}>
               <CheckCircle2 className="w-4 h-4 mr-1" />Hotovo
             </Button>
           )}
-          {obligation.status === "DONE" && (
+          {obligation.status === "DONE" && !editing && (
             <Button variant="ghost" size="sm" onClick={markArchived}>Archivovat</Button>
           )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Smazat povinnost?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tato akce je nevratná. Povinnost „{obligation.title}" bude trvale smazána včetně dokumentů a historie.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Zrušit</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Smazat
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Edit form or read-only cards */}
+      {editing ? (
         <Card>
-          <CardContent className="p-4 space-y-2">
-            <p className="text-xs text-muted-foreground font-medium">Služba</p>
-            <p className="font-semibold">{service?.code} – {service?.name || "—"}</p>
-            <p className="text-xs text-muted-foreground">{service?.group_name}</p>
+          <CardContent className="p-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Název</Label>
+              <Input value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Datum provedení</Label>
+                <Input type="date" value={editForm.performed_date} onChange={e => setEditForm({ ...editForm, performed_date: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Expirace / příští termín</Label>
+                <Input type="date" value={editForm.next_due_date} onChange={e => setEditForm({ ...editForm, next_due_date: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Počet kusů</Label>
+                <Input type="number" value={editForm.quantity} onChange={e => setEditForm({ ...editForm, quantity: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Technik</Label>
+                <Input value={editForm.technician_name} onChange={e => setEditForm({ ...editForm, technician_name: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Firma technika</Label>
+                <Input value={editForm.technician_company} onChange={e => setEditForm({ ...editForm, technician_company: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Tel. technik</Label>
+                <Input value={editForm.technician_phone} onChange={e => setEditForm({ ...editForm, technician_phone: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Poznámka</Label>
+              <Textarea value={editForm.findings_summary} onChange={e => setEditForm({ ...editForm, findings_summary: e.target.value })} />
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <p className="text-xs text-muted-foreground font-medium">Datum provedení</p>
-            <p className="font-semibold">{obligation.performed_date ? format(new Date(obligation.performed_date), "d. M. yyyy", { locale: cs }) : "—"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <p className="text-xs text-muted-foreground font-medium">Expirace / příští termín</p>
-            <p className="font-semibold">{obligation.next_due_date ? format(new Date(obligation.next_due_date), "d. M. yyyy", { locale: cs }) : "—"}</p>
-            {obligation.quantity && <p className="text-xs text-muted-foreground">Počet: {obligation.quantity} ks</p>}
-          </CardContent>
-        </Card>
-      </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-4 space-y-2">
+                <p className="text-xs text-muted-foreground font-medium">Služba</p>
+                <p className="font-semibold">{service?.code} – {service?.name || "—"}</p>
+                <p className="text-xs text-muted-foreground">{service?.group_name}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 space-y-2">
+                <p className="text-xs text-muted-foreground font-medium">Datum provedení</p>
+                <p className="font-semibold">{obligation.performed_date ? format(new Date(obligation.performed_date), "d. M. yyyy", { locale: cs }) : "—"}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 space-y-2">
+                <p className="text-xs text-muted-foreground font-medium">Expirace / příští termín</p>
+                <p className="font-semibold">{obligation.next_due_date ? format(new Date(obligation.next_due_date), "d. M. yyyy", { locale: cs }) : "—"}</p>
+                {obligation.quantity && <p className="text-xs text-muted-foreground">Počet: {obligation.quantity} ks</p>}
+              </CardContent>
+            </Card>
+          </div>
 
-      {obligation.findings_summary && (
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground font-medium mb-1">Poznámka</p>
-            <p className="text-sm">{obligation.findings_summary}</p>
-          </CardContent>
-        </Card>
+          {obligation.findings_summary && (
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground font-medium mb-1">Poznámka</p>
+                <p className="text-sm">{obligation.findings_summary}</p>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       <Tabs defaultValue="documents">
