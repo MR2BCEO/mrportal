@@ -1,27 +1,34 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
-import { AlertTriangle, Clock, CalendarDays, CalendarPlus, HelpCircle, Plus } from "lucide-react";
+import {
+  AlertTriangle, Clock, CalendarDays, CalendarPlus, HelpCircle, Plus,
+  CheckCircle2, Play, MapPin, ArrowRight, RotateCcw, User
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { cs } from "date-fns/locale";
+import { useToast } from "@/hooks/use-toast";
+import { Toggle } from "@/components/ui/toggle";
 
 const DEFAULT_THRESHOLD_DAYS = 30;
+const RANGE_OPTIONS = [7, 14, 30, 60] as const;
 
 type TermGroup = "valid" | "expiring" | "expired" | "needs_info";
 
-function computeTermGroup(nextDueDate: string | null, thresholdDays: number): TermGroup {
+function computeTermGroup(nextDueDate: string | null, rangeDays: number): TermGroup {
   if (!nextDueDate) return "needs_info";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(nextDueDate);
   due.setHours(0, 0, 0, 0);
   if (due < today) return "expired";
-  const thresholdDate = new Date(today);
-  thresholdDate.setDate(thresholdDate.getDate() + thresholdDays);
-  if (due <= thresholdDate) return "expiring";
+  const threshold = new Date(today);
+  threshold.setDate(threshold.getDate() + rangeDays);
+  if (due <= threshold) return "expiring";
   return "valid";
 }
 
@@ -44,9 +51,11 @@ interface ObligationRow {
   status: string;
   next_due_date: string | null;
   performed_date: string | null;
+  responsible_user_id: string | null;
   customers: { name: string } | null;
-  locations: { name: string } | null;
+  locations: { id: string; name: string } | null;
   service_catalog: { code: string; name: string; division: string } | null;
+  profiles: { name: string | null } | null;
 }
 
 type KpiFilter = "expired" | "expiring" | "this_month" | "next_month" | "needs_info" | null;
@@ -55,24 +64,34 @@ export default function Dashboard() {
   const [obligations, setObligations] = useState<ObligationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [kpiFilter, setKpiFilter] = useState<KpiFilter>(null);
-  const [thresholdDays, setThresholdDays] = useState(DEFAULT_THRESHOLD_DAYS);
+  const [settingsThreshold, setSettingsThreshold] = useState(DEFAULT_THRESHOLD_DAYS);
+  const [rangeDays, setRangeDays] = useState(DEFAULT_THRESHOLD_DAYS);
+  const [onlyMine, setOnlyMine] = useState(false);
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user } = useAuth();
 
-  useEffect(() => {
+  const fetchObligations = () => {
     supabase
       .from("obligations")
-      .select("id, title, status, next_due_date, performed_date, customers(name), locations(name), service_catalog(code, name, division)")
+      .select("id, title, status, next_due_date, performed_date, responsible_user_id, customers(name), locations(id, name), service_catalog(code, name, division), profiles(name)")
       .order("next_due_date", { ascending: true, nullsFirst: false })
       .then(({ data }) => {
         if (data) setObligations(data as unknown as ObligationRow[]);
         setLoading(false);
       });
+  };
 
+  useEffect(() => {
+    fetchObligations();
     supabase.from("app_settings").select("value").eq("key", "due_soon_threshold_days").single()
       .then(({ data }) => {
         if (data) {
           const val = parseInt(String(data.value));
-          if (!isNaN(val) && val > 0) setThresholdDays(val);
+          if (!isNaN(val) && val > 0) {
+            setSettingsThreshold(val);
+            setRangeDays(val);
+          }
         }
       });
   }, []);
@@ -84,10 +103,15 @@ export default function Dashboard() {
   const nextMonthYear = nextMonthDate.getFullYear();
   const nextMonthMonth = nextMonthDate.getMonth();
 
+  const baseList = useMemo(() => {
+    if (!onlyMine || !user) return obligations;
+    return obligations.filter(o => o.responsible_user_id === user.id);
+  }, [obligations, onlyMine, user]);
+
   const counts = useMemo(() => {
     let expired = 0, expiring = 0, thisM = 0, nextM = 0, needsInfo = 0;
-    obligations.forEach(o => {
-      const g = computeTermGroup(o.next_due_date, thresholdDays);
+    baseList.forEach(o => {
+      const g = computeTermGroup(o.next_due_date, rangeDays);
       if (g === "expired") expired++;
       else if (g === "expiring") expiring++;
       if (g === "needs_info") needsInfo++;
@@ -95,29 +119,27 @@ export default function Dashboard() {
       if (isInMonth(o.next_due_date, nextMonthYear, nextMonthMonth)) nextM++;
     });
     return { expired, expiring, thisMonth: thisM, nextMonth: nextM, needsInfo };
-  }, [obligations, thresholdDays, thisYear, thisMonth, nextMonthYear, nextMonthMonth]);
+  }, [baseList, rangeDays, thisYear, thisMonth, nextMonthYear, nextMonthMonth]);
 
-  // Filter + sort for table
   const tableData = useMemo(() => {
-    let list = obligations;
+    let list = baseList;
 
     if (kpiFilter === "expired") {
-      list = list.filter(o => computeTermGroup(o.next_due_date, thresholdDays) === "expired");
+      list = list.filter(o => computeTermGroup(o.next_due_date, rangeDays) === "expired");
     } else if (kpiFilter === "expiring") {
-      list = list.filter(o => computeTermGroup(o.next_due_date, thresholdDays) === "expiring");
+      list = list.filter(o => computeTermGroup(o.next_due_date, rangeDays) === "expiring");
     } else if (kpiFilter === "this_month") {
       list = list.filter(o => isInMonth(o.next_due_date, thisYear, thisMonth));
     } else if (kpiFilter === "next_month") {
       list = list.filter(o => isInMonth(o.next_due_date, nextMonthYear, nextMonthMonth));
     } else if (kpiFilter === "needs_info") {
-      list = list.filter(o => computeTermGroup(o.next_due_date, thresholdDays) === "needs_info");
+      list = list.filter(o => computeTermGroup(o.next_due_date, rangeDays) === "needs_info");
     }
 
-    // Default sort: OVERDUE first, then DUE_SOON, then by date asc
     const groupOrder: Record<TermGroup, number> = { expired: 0, expiring: 1, needs_info: 2, valid: 3 };
     const sorted = [...list].sort((a, b) => {
-      const ga = computeTermGroup(a.next_due_date, thresholdDays);
-      const gb = computeTermGroup(b.next_due_date, thresholdDays);
+      const ga = computeTermGroup(a.next_due_date, rangeDays);
+      const gb = computeTermGroup(b.next_due_date, rangeDays);
       if (groupOrder[ga] !== groupOrder[gb]) return groupOrder[ga] - groupOrder[gb];
       const da = a.next_due_date || "9999";
       const db = b.next_due_date || "9999";
@@ -125,18 +147,51 @@ export default function Dashboard() {
     });
 
     return sorted.slice(0, 20);
-  }, [obligations, kpiFilter, thresholdDays, thisYear, thisMonth, nextMonthYear, nextMonthMonth]);
+  }, [baseList, kpiFilter, rangeDays, thisYear, thisMonth, nextMonthYear, nextMonthMonth]);
 
-  const kpiCards: { key: KpiFilter; label: string; count: number; icon: typeof AlertTriangle; color: string }[] = [
-    { key: "expired", label: "Po termínu", count: counts.expired, icon: AlertTriangle, color: "text-red-600" },
-    { key: "expiring", label: "Brzy vyprší", count: counts.expiring, icon: Clock, color: "text-yellow-600" },
-    { key: "this_month", label: "Tento měsíc", count: counts.thisMonth, icon: CalendarDays, color: "text-blue-600" },
-    { key: "next_month", label: "Příští měsíc", count: counts.nextMonth, icon: CalendarPlus, color: "text-blue-400" },
-    { key: "needs_info", label: "Chybí datum", count: counts.needsInfo, icon: HelpCircle, color: "text-muted-foreground" },
+  // D) Top locations with most expirations within range
+  const topLocations = useMemo(() => {
+    const locMap = new Map<string, { id: string; name: string; count: number }>();
+    baseList.forEach(o => {
+      if (!o.locations) return;
+      const g = computeTermGroup(o.next_due_date, rangeDays);
+      if (g === "expired" || g === "expiring") {
+        const key = o.locations.id;
+        const existing = locMap.get(key);
+        if (existing) {
+          existing.count++;
+        } else {
+          locMap.set(key, { id: key, name: o.locations.name, count: 1 });
+        }
+      }
+    });
+    return Array.from(locMap.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [baseList, rangeDays]);
+
+  const handleQuickAction = async (id: string, newStatus: "DONE" | "IN_PROGRESS", e: React.MouseEvent) => {
+    e.stopPropagation();
+    const { error } = await supabase.from("obligations").update({ status: newStatus }).eq("id", id);
+    if (error) {
+      toast({ title: "Chyba", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: newStatus === "DONE" ? "Označeno jako hotovo" : "Zahájeno" });
+    fetchObligations();
+  };
+
+  const kpiCards: { key: KpiFilter; label: string; count: number; icon: typeof AlertTriangle; color: string; bgColor: string }[] = [
+    { key: "expired", label: "Po termínu", count: counts.expired, icon: AlertTriangle, color: "text-red-600", bgColor: "bg-red-100 dark:bg-red-900/30" },
+    { key: "expiring", label: "Brzy vyprší", count: counts.expiring, icon: Clock, color: "text-yellow-600", bgColor: "bg-yellow-100 dark:bg-yellow-900/30" },
+    { key: "this_month", label: "Tento měsíc", count: counts.thisMonth, icon: CalendarDays, color: "text-blue-600", bgColor: "bg-blue-100 dark:bg-blue-900/30" },
+    { key: "next_month", label: "Příští měsíc", count: counts.nextMonth, icon: CalendarPlus, color: "text-sky-500", bgColor: "bg-sky-100 dark:bg-sky-900/30" },
+    { key: "needs_info", label: "Chybí datum", count: counts.needsInfo, icon: HelpCircle, color: "text-muted-foreground", bgColor: "bg-muted" },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -148,39 +203,67 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      {/* 1) KPI Cards */}
+      {/* A) KPI Cards – clickable filters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {kpiCards.map(kpi => (
-          <Card
-            key={kpi.key}
-            className={`cursor-pointer transition-shadow hover:shadow-md ${kpiFilter === kpi.key ? "ring-2 ring-primary" : ""}`}
-            onClick={() => setKpiFilter(kpiFilter === kpi.key ? null : kpi.key)}
-          >
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-lg bg-muted flex items-center justify-center ${kpi.color}`}>
-                <kpi.icon className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xl font-bold">{kpi.count}</p>
-                <p className="text-[11px] text-muted-foreground leading-tight">{kpi.label}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {kpiCards.map(kpi => {
+          const isActive = kpiFilter === kpi.key;
+          return (
+            <Card
+              key={kpi.key}
+              className={`cursor-pointer transition-all hover:shadow-md ${isActive ? "ring-2 ring-primary shadow-md" : ""}`}
+              onClick={() => setKpiFilter(isActive ? null : kpi.key)}
+            >
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${kpi.bgColor} ${kpi.color}`}>
+                  <kpi.icon className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{kpi.count}</p>
+                  <p className="text-[11px] text-muted-foreground leading-tight">{kpi.label}</p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
-      {/* 2) Critical obligations table */}
+      {/* C) Critical obligations table */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <CardTitle className="text-base">Nejkritičtější revize</CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* B) Range switcher */}
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span>Do:</span>
+                {RANGE_OPTIONS.map(d => (
+                  <Button
+                    key={d}
+                    variant={rangeDays === d ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setRangeDays(d)}
+                  >
+                    {d}d
+                  </Button>
+                ))}
+              </div>
+              <div className="h-5 w-px bg-border hidden sm:block" />
+              {/* "My" filter */}
+              <Button
+                variant={onlyMine ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setOnlyMine(!onlyMine)}
+              >
+                <User className="w-3 h-3 mr-1" />Moje
+              </Button>
               {kpiFilter && (
-                <Button variant="ghost" size="sm" onClick={() => setKpiFilter(null)}>
-                  Zobrazit vše
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setKpiFilter(null)}>
+                  <RotateCcw className="w-3 h-3 mr-1" />Reset
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => navigate("/obligations")}>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => navigate("/obligations")}>
                 Všechny revize →
               </Button>
             </div>
@@ -202,13 +285,16 @@ export default function Dashboard() {
                     <th className="text-left p-3 font-medium text-muted-foreground">Lokalita</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Služba</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Expirace</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Odpovědný</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Stav</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground w-16">Akce</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Akce</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tableData.map(ob => {
-                    const group = computeTermGroup(ob.next_due_date, thresholdDays);
+                    const group = computeTermGroup(ob.next_due_date, rangeDays);
+                    const isDone = ob.status === "DONE";
+                    const isInProgress = ob.status === "IN_PROGRESS";
                     return (
                       <tr
                         key={ob.id}
@@ -220,14 +306,41 @@ export default function Dashboard() {
                         <td className="p-3 font-medium">
                           {ob.service_catalog ? `${ob.service_catalog.code} – ${ob.service_catalog.name}` : ob.title}
                         </td>
-                        <td className="p-3 text-muted-foreground">
+                        <td className="p-3 text-muted-foreground whitespace-nowrap">
                           {ob.next_due_date ? format(new Date(ob.next_due_date), "d. M. yyyy", { locale: cs }) : "—"}
+                        </td>
+                        <td className="p-3 text-muted-foreground text-xs">
+                          {ob.profiles?.name || "—"}
                         </td>
                         <td className="p-3"><StatusBadge status={termGroupToStatus[group]} /></td>
                         <td className="p-3">
-                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); navigate(`/obligations/${ob.id}`); }}>
-                            Detail
-                          </Button>
+                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                            <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => navigate(`/obligations/${ob.id}`)}>
+                              Detail
+                            </Button>
+                            {!isDone && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-1.5 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                title="Hotovo"
+                                onClick={(e) => handleQuickAction(ob.id, "DONE", e)}
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                            {!isInProgress && !isDone && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                title="Zahájeno"
+                                onClick={(e) => handleQuickAction(ob.id, "IN_PROGRESS", e)}
+                              >
+                                <Play className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -238,6 +351,43 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* D) Top locations */}
+      {topLocations.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-muted-foreground" />
+              Top lokace do {rangeDays} dnů
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {topLocations.map(loc => (
+                <div key={loc.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                      <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{loc.name}</p>
+                      <p className="text-xs text-muted-foreground">{loc.count} {loc.count === 1 ? "položka" : loc.count < 5 ? "položky" : "položek"}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => navigate(`/locations/${loc.id}`)}
+                  >
+                    Zobrazit <ArrowRight className="w-3 h-3 ml-1" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
